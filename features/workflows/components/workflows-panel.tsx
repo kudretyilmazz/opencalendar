@@ -1,10 +1,23 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Alert, Button, Field, Input, Select } from "@/components/ui/primitives";
-import { deleteWorkflowAction, saveWorkflowAction, toggleWorkflowAction } from "@/features/event-types/server/extras-actions";
+import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  deleteWorkflowAction,
+  saveWorkflowAction,
+  toggleWorkflowAction,
+} from "@/features/event-types/server/extras-actions";
 import { deleteTeamWorkflowAction, saveTeamWorkflowAction, toggleTeamWorkflowAction } from "../server/team-actions";
 import { type ActionState, idle } from "@/lib/actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import {
   DEFAULT_REMINDER,
   isTimed,
@@ -33,7 +46,17 @@ function describe(w: WorkflowItem): string {
   return `Email ${RECIPIENT_LABELS[w.recipient].toLowerCase()} ${when}`;
 }
 
-function WorkflowEditor({ scope, initial, id, onDone }: { scope: WorkflowScope; initial: WorkflowFormInput; id: string | null; onDone: () => void }) {
+function WorkflowEditor({
+  scope,
+  initial,
+  id,
+  onDone,
+}: {
+  scope: WorkflowScope;
+  initial: WorkflowFormInput;
+  id: string | null;
+  onDone: () => void;
+}) {
   const [form, setForm] = useState(initial);
   const [state, action, pending] = useActionState<ActionState, FormData>(async (prev, data) => {
     const result = await actionsFor(scope).save(scope.id, id, prev, data);
@@ -45,53 +68,109 @@ function WorkflowEditor({ scope, initial, id, onDone }: { scope: WorkflowScope; 
   const prefix = id ?? "new";
 
   return (
-    <form action={action} className="flex flex-col gap-3 rounded-md border border-border p-3">
+    <form
+      action={action}
+      onSubmit={submitWithoutReset(action)}
+      className="flex flex-col gap-3 rounded-md border border-border p-3"
+    >
       <input type="hidden" name="payload" value={JSON.stringify(form)} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Name" htmlFor={`wf-name-${prefix}`} error={errors.name}>
-          <Input id={`wf-name-${prefix}`} value={form.name} maxLength={100} onChange={(e) => set({ name: e.target.value })} />
-        </Field>
-        <Field label="When" htmlFor={`wf-trigger-${prefix}`}>
-          <Select id={`wf-trigger-${prefix}`} value={form.trigger} onChange={(e) => set({ trigger: e.target.value as WorkflowFormInput["trigger"] })}>
-            {WORKFLOW_TRIGGERS.map((t) => (
-              <option key={t} value={t}>
-                {TRIGGER_LABELS[t]}
-              </option>
-            ))}
+        <FormField label="Name" htmlFor={`wf-name-${prefix}`} error={errors.name}>
+          <Input
+            id={`wf-name-${prefix}`}
+            value={form.name}
+            maxLength={100}
+            onChange={(e) => set({ name: e.target.value })}
+          />
+        </FormField>
+        <FormField label="When" htmlFor={`wf-trigger-${prefix}`}>
+          <Select value={form.trigger} onValueChange={(v) => set({ trigger: v as WorkflowFormInput["trigger"] })}>
+            <SelectTrigger id={`wf-trigger-${prefix}`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WORKFLOW_TRIGGERS.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TRIGGER_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
-        </Field>
+        </FormField>
         {isTimed(form.trigger) && (
-          <Field label={form.trigger === "before_start" ? "Minutes before" : "Minutes after"} htmlFor={`wf-offset-${prefix}`} error={errors.offsetMinutes}>
-            <Input id={`wf-offset-${prefix}`} type="number" min={1} max={43200} value={form.offsetMinutes} onChange={(e) => set({ offsetMinutes: Number(e.target.value) })} />
-          </Field>
+          <FormField
+            label={form.trigger === "before_start" ? "Minutes before" : "Minutes after"}
+            htmlFor={`wf-offset-${prefix}`}
+            error={errors.offsetMinutes}
+          >
+            <Input
+              id={`wf-offset-${prefix}`}
+              type="number"
+              min={1}
+              max={43200}
+              value={form.offsetMinutes}
+              onChange={(e) => set({ offsetMinutes: Number(e.target.value) })}
+            />
+          </FormField>
         )}
-        <Field label="Send to" htmlFor={`wf-recipient-${prefix}`}>
-          <Select id={`wf-recipient-${prefix}`} value={form.recipient} onChange={(e) => set({ recipient: e.target.value as WorkflowFormInput["recipient"] })}>
-            {WORKFLOW_RECIPIENTS.map((r) => (
-              <option key={r} value={r}>
-                {RECIPIENT_LABELS[r]}
-              </option>
-            ))}
+        <FormField label="Send to" htmlFor={`wf-recipient-${prefix}`}>
+          <Select value={form.recipient} onValueChange={(v) => set({ recipient: v as WorkflowFormInput["recipient"] })}>
+            <SelectTrigger id={`wf-recipient-${prefix}`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WORKFLOW_RECIPIENTS.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {RECIPIENT_LABELS[r]}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
-        </Field>
+        </FormField>
         {form.recipient === "address" && (
-          <Field label="Email address" htmlFor={`wf-address-${prefix}`} error={errors.address}>
-            <Input id={`wf-address-${prefix}`} type="email" value={form.address ?? ""} onChange={(e) => set({ address: e.target.value || null })} />
-          </Field>
+          <FormField label="Email address" htmlFor={`wf-address-${prefix}`} error={errors.address}>
+            <Input
+              id={`wf-address-${prefix}`}
+              type="email"
+              value={form.address ?? ""}
+              onChange={(e) => set({ address: e.target.value || null })}
+            />
+          </FormField>
         )}
       </div>
-      <Field label="Subject" htmlFor={`wf-subject-${prefix}`} error={errors.subject}>
-        <Input id={`wf-subject-${prefix}`} value={form.subject} maxLength={200} onChange={(e) => set({ subject: e.target.value })} />
-      </Field>
-      <Field label="Message" htmlFor={`wf-body-${prefix}`} hint={`Variables: ${TEMPLATE_VARIABLES.join(" ")}`} error={errors.body}>
-        <textarea id={`wf-body-${prefix}`} className="min-h-32 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" maxLength={5000} value={form.body} onChange={(e) => set({ body: e.target.value })} />
-      </Field>
-      {state.status === "error" && <Alert tone="error">{state.message}</Alert>}
+      <FormField label="Subject" htmlFor={`wf-subject-${prefix}`} error={errors.subject}>
+        <Input
+          id={`wf-subject-${prefix}`}
+          value={form.subject}
+          maxLength={200}
+          onChange={(e) => set({ subject: e.target.value })}
+        />
+      </FormField>
+      <FormField
+        label="Message"
+        htmlFor={`wf-body-${prefix}`}
+        hint={`Variables: ${TEMPLATE_VARIABLES.join(" ")}`}
+        error={errors.body}
+      >
+        <Textarea
+          id={`wf-body-${prefix}`}
+          className="min-h-32"
+          maxLength={5000}
+          value={form.body}
+          onChange={(e) => set({ body: e.target.value })}
+        />
+      </FormField>
+      {state.status === "error" && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex gap-2">
-        <Button type="submit" className="h-9" disabled={pending}>
+        <Button type="submit" disabled={pending}>
+          {pending && <Spinner />}
           Save workflow
         </Button>
-        <Button type="button" variant="ghost" className="h-9" onClick={onDone}>
+        <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
       </div>
@@ -108,8 +187,9 @@ export function WorkflowsPanel({ scope, workflows }: { scope: WorkflowScope; wor
   return (
     <section className="flex flex-col gap-3">
       <h2 className="font-medium">Workflows</h2>
-      <p className="text-sm text-muted">
-        Automatic emails for {scope.kind === "team" ? "every event type of this team" : "this event type"}, such as reminders. Times are shown in each recipient’s time zone.
+      <p className="text-sm text-muted-foreground">
+        Automatic emails for {scope.kind === "team" ? "every event type of this team" : "this event type"}, such as
+        reminders. Times are shown in each recipient’s time zone.
       </p>
       <ul className="flex flex-col gap-2">
         {workflows.map((w) =>
@@ -121,16 +201,29 @@ export function WorkflowsPanel({ scope, workflows }: { scope: WorkflowScope; wor
             <li key={w.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-3 text-sm">
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{w.name}</p>
-                <p className="text-muted">{describe(w)}</p>
+                <p className="text-muted-foreground">{describe(w)}</p>
               </div>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={w.enabled} disabled={busy} onChange={(e) => startTransition(() => actions.toggle(scope.id, w.id, e.target.checked))} />
-                On
-              </label>
-              <Button type="button" variant="secondary" className="h-8" onClick={() => setEditing(w.id)}>
+              <Field orientation="horizontal" className="w-auto">
+                <Switch
+                  id={`wf-on-${w.id}`}
+                  checked={w.enabled}
+                  disabled={busy}
+                  onCheckedChange={(on) => startTransition(() => actions.toggle(scope.id, w.id, on))}
+                />
+                <FieldLabel htmlFor={`wf-on-${w.id}`} className="font-normal">
+                  On
+                </FieldLabel>
+              </Field>
+              <Button type="button" variant="outline" size="sm" onClick={() => setEditing(w.id)}>
                 Edit
               </Button>
-              <Button type="button" variant="ghost" className="h-8" disabled={busy} onClick={() => startTransition(() => actions.remove(scope.id, w.id))}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => startTransition(() => actions.remove(scope.id, w.id))}
+              >
                 Delete
               </Button>
             </li>
@@ -138,9 +231,14 @@ export function WorkflowsPanel({ scope, workflows }: { scope: WorkflowScope; wor
         )}
       </ul>
       {editing === "new" ? (
-        <WorkflowEditor scope={scope} id={null} initial={{ ...DEFAULT_REMINDER, name: "New workflow" }} onDone={() => setEditing(null)} />
+        <WorkflowEditor
+          scope={scope}
+          id={null}
+          initial={{ ...DEFAULT_REMINDER, name: "New workflow" }}
+          onDone={() => setEditing(null)}
+        />
       ) : (
-        <Button type="button" variant="secondary" className="self-start" onClick={() => setEditing("new")}>
+        <Button type="button" variant="outline" className="self-start" onClick={() => setEditing("new")}>
           Add workflow
         </Button>
       )}

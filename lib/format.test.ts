@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTimeRange, formatDuration, formatTime, prefers12Hour, timeZoneLabel } from "./format";
+import { formatDateTimeRange, formatDuration, formatTime, prefers12Hour, timeZoneLabel, formatShortDate, formatWeekdayDate } from "./format";
 
 const at = Date.parse("2026-10-05T14:30:00Z");
 
@@ -33,3 +33,13 @@ describe("format (I18N-001)", () => {
     expect(prefers12Hour("tr-TR")).toBe(false);
   });
 });
+
+describe("formatWeekdayDate / formatShortDate", () => {
+  const at = Date.parse("2026-09-29T21:30:00Z"); // already Wednesday in Istanbul
+  it("formats in the given zone and locale", () => {
+    expect(formatWeekdayDate(at, { locale: "en-GB", timeZone: "Europe/Istanbul", hour12: false })).toBe("Wednesday 30 September");
+    expect(formatWeekdayDate(at, { locale: "en-US", timeZone: "UTC", hour12: true })).toBe("Tuesday, September 29");
+    expect(formatShortDate(at, { locale: "en-GB", timeZone: "UTC", hour12: false })).toBe("Tue 29 Sept");
+  });
+});
+

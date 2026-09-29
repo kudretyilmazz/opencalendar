@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/primitives";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { durationsOf, type EventTypeView } from "@/features/event-types/server/service";
 import { formatDuration } from "@/lib/format";
 import { markdownToText } from "@/lib/markdown";
@@ -14,19 +14,29 @@ export function EventTypeList({ heading, logoUrl, basePath, eventTypes }: Props)
         {/* eslint-disable-next-line @next/next/no-img-element -- external logo URL, no optimizer config */}
         {logoUrl && <img src={logoUrl} alt="" className="h-12 w-12 rounded-full object-cover" referrerPolicy="no-referrer" />}
         <h1 className="text-2xl font-semibold">{heading}</h1>
-        <p className="text-sm text-muted">Pick a meeting type to see available times.</p>
+        <p className="text-sm text-muted-foreground">Pick a meeting type to see available times.</p>
       </header>
       {eventTypes.length === 0 ? (
-        <Card className="text-center text-sm text-muted">No meetings are available to book right now.</Card>
+        <Card>
+          <CardContent className="text-center text-muted-foreground">No meetings are available to book right now.</CardContent>
+        </Card>
       ) : (
         <ul className="flex flex-col gap-3">
           {eventTypes.map((et) => (
             <li key={et.id}>
               <Link href={`${basePath}/${et.slug}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Card className="p-4 transition hover:border-foreground/30">
-                  <h2 className="font-medium">{et.title}</h2>
-                  <p className="text-sm text-muted">{durationsOf(et).map((d) => formatDuration(d, "en")).join(" / ")}</p>
-                  {et.description && <p className="mt-2 line-clamp-2 text-sm">{markdownToText(et.description)}</p>}
+                <Card className="transition hover:ring-foreground/30">
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>{et.title}</h2>
+                    </CardTitle>
+                    <CardDescription>{durationsOf(et).map((d) => formatDuration(d, "en")).join(" / ")}</CardDescription>
+                  </CardHeader>
+                  {et.description && (
+                    <CardContent>
+                      <p className="line-clamp-2">{markdownToText(et.description)}</p>
+                    </CardContent>
+                  )}
                 </Card>
               </Link>
             </li>

@@ -6,7 +6,7 @@ import { getEnv } from "@/lib/env";
  */
 export function SourceFooter() {
   return (
-    <footer className="px-4 py-3 text-center text-xs text-muted">
+    <footer className="px-4 py-3 text-center text-xs text-muted-foreground">
       Powered by OpenCalendar ·{" "}
       <a href={getEnv().SOURCE_URL} className="underline underline-offset-4" rel="noopener">
         Source code (AGPL-3.0)

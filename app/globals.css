@@ -1,55 +1,132 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* shadcn/ui token set. Values keep the OpenCalendar slate palette; danger/muted colors are the
+   ones the axe checks (NFR-008) pass with, so change them only with a contrast check. */
 :root,
 .light {
+  --radius: 0.625rem;
   --background: #fafafa;
-  --surface: #ffffff;
   --foreground: #0f172a;
-  --muted: #64748b;
-  --border: #e2e8f0;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --primary: #111827;
   --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  /* 4.6:1 on --muted (#f1f5f9), where segmented controls and chips put it; #64748b was 4.34. */
+  --muted-foreground: #607087;
   --accent: #f1f5f9;
-  --danger: #991b1b;
+  --accent-foreground: #0f172a;
+  --destructive: #991b1b;
   --success: #166534;
+  --success-foreground: #ffffff;
+  /* Highlight: "starts soon" pills, links and progress. Warning: bookings awaiting a decision. */
+  --highlight: #4f46e5;
+  --highlight-foreground: #ffffff;
+  --highlight-text: #4f46e5;
+  --warning: #fef3c7;
+  --warning-foreground: #92400e;
+  --warning-border: #fcd34d;
+  --success-soft: #dcfce7;
+  --destructive-soft: #fee2e2;
+  --destructive-border: #fecaca;
+  --highlight-soft: #eef2ff;
+  --highlight-border: #c7d2fe;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
   --ring: #6366f1;
 }
 
 .dark {
   --background: #0b0f17;
-  --surface: #111827;
   --foreground: #e5e7eb;
-  --muted: #94a3b8;
-  --border: #1f2937;
+  --card: #111827;
+  --card-foreground: #e5e7eb;
+  --popover: #111827;
+  --popover-foreground: #e5e7eb;
   --primary: #f8fafc;
   --primary-foreground: #0f172a;
+  --secondary: #1e293b;
+  --secondary-foreground: #e5e7eb;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
   --accent: #1e293b;
-  --danger: #f87171;
+  --accent-foreground: #f8fafc;
+  --destructive: #f87171;
   --success: #4ade80;
+  --success-foreground: #052e16;
+  --highlight: #4f46e5;
+  --highlight-foreground: #ffffff;
+  --highlight-text: #a5b4fc;
+  --warning: #422006;
+  --warning-foreground: #fbbf24;
+  --warning-border: #78350f;
+  --success-soft: #052e16;
+  --destructive-soft: #450a0a;
+  --destructive-border: #7f1d1d;
+  --highlight-soft: #1e1b4b;
+  --highlight-border: #3730a3;
+  --border: #1f2937;
+  --input: #334155;
   --ring: #818cf8;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-danger: var(--danger);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-highlight-text: var(--highlight-text);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-border: var(--warning-border);
+  --color-success-soft: var(--success-soft);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-border: var(--destructive-border);
+  --color-highlight-soft: var(--highlight-soft);
+  --color-highlight-border: var(--highlight-border);
+  --color-border: var(--border);
+  --color-input: var(--input);
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 /* NFR-008: honor "reduce motion" — no transitions or animations (e.g. hover fades, spinners). */

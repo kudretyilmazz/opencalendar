@@ -30,7 +30,7 @@ See [system-overview.md](./system-overview.md) for how the pieces fit together.
 | Outbound HTTP to user URLs | undici `Agent` with a checked DNS lookup | SSRF guard that re-checks addresses at connect time (DNS rebinding) | Pre-resolve only (racy), egress proxy |
 | Dates / time zones | date-fns 4 + `@date-fns/tz` | Tree-shakeable, `TZDate` for IANA zones, DST-aware | Luxon, Day.js (Cal.com), Temporal (not yet everywhere) |
 | Styling | Tailwind CSS 4 | Already in scaffold; CSS-first config, themeable via CSS variables | CSS Modules |
-| Components | Small owned primitives (`components/ui`), shadcn/ui (Radix) planned when richer widgets (dialogs, popovers) are needed | Owned source, accessible, easy white-labeling | MUI, Mantine |
+| Components | shadcn/ui (Radix base, `radix-nova` style) in `components/ui`, plus owned composites: `DatePicker`, `TimePicker`, `Combobox` (`components/ui/`) and `FormField` (`components/form-field.tsx`) | Owned source, accessible, easy white-labeling; no browser-default form controls | MUI, Mantine |
 | Theming | Own light/dark/system provider + `next/script` (`beforeInteractive`, CSP nonce) | No flash of wrong theme; avoids React 19's client-rendered `<script>` warning seen with `next-themes` | next-themes |
 | i18n | next-intl (en, tr at launch) | App Router + RSC support, ICU messages | next-i18next (Pages era) |
 | Unit tests | Vitest | Fast, ESM, TS native; engine tests run in ms | Jest |

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { noShowAction } from "../server/decision-actions";
 
 type Person = { id: string; label: string; noShow: boolean };
@@ -18,15 +20,19 @@ export function NoShowControls({ bookingId, host, attendees }: { bookingId: stri
     });
 
   return (
-    <fieldset className="flex flex-col gap-1 text-sm" disabled={pending}>
-      <legend className="mb-1 font-medium">No-show</legend>
+    <FieldSet className="gap-1.5" disabled={pending}>
+      <FieldLegend variant="label" className="mb-1">
+        No-show
+      </FieldLegend>
       {people.map((p) => (
-        <label key={p.id} className="flex items-center gap-2">
-          <input type="checkbox" defaultChecked={p.noShow} onChange={(e) => toggle(p.id, e.target.checked)} />
-          {p.label}
-        </label>
+        <Field key={p.id} orientation="horizontal" data-disabled={pending || undefined}>
+          <Checkbox id={`no-show-${bookingId}-${p.id}`} defaultChecked={p.noShow} onCheckedChange={(checked) => toggle(p.id, checked === true)} />
+          <FieldLabel htmlFor={`no-show-${bookingId}-${p.id}`} className="font-normal">
+            {p.label}
+          </FieldLabel>
+        </Field>
       ))}
-      {error && <p className="text-danger">{error}</p>}
-    </fieldset>
+      {error && <FieldError>{error}</FieldError>}
+    </FieldSet>
   );
 }

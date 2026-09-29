@@ -155,7 +155,7 @@ function renderInline(nodes: Inline[]): ReactNode[] {
         return <em key={i}>{children}</em>;
       case "code":
         return (
-          <code key={i} className="rounded bg-muted/20 px-1 py-0.5 font-mono text-[0.9em]">
+          <code key={i} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]">
             {children}
           </code>
         );

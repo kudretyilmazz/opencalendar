@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
+import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { BookingWidget } from "@/features/bookings/components/booking-widget";
 import { publicLocationLabel } from "@/features/bookings/location";
@@ -53,7 +54,7 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
 
   return (
     <main className={cn("mx-auto flex w-full flex-1 flex-col", embed ? "max-w-5xl bg-background p-0 text-foreground" : "max-w-5xl px-4 py-10", theme)} style={brand}>
-      <div className={cn("overflow-hidden bg-surface", !embed && "rounded-xl border border-border shadow-sm")}>
+      <Card className={cn("gap-0 py-0", embed ? "rounded-none shadow-none ring-0" : "shadow-sm")}>
         <BookingWidget
           title={eventType.title}
           hostName={target.displayName}
@@ -87,7 +88,7 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
             captcha: getEnv().CAPTCHA === "altcha",
           }}
         />
-      </div>
+      </Card>
     </main>
   );
 }

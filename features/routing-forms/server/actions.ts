@@ -9,7 +9,7 @@ import { type ActionState, parsePayload } from "@/lib/actions";
 import { requireUser } from "@/lib/auth/session";
 import { clientIp, overLimit } from "@/lib/security/public-limits";
 import { createRoutingFormSchema, routingFormSchema } from "../schemas";
-import { createForm, deleteForm, RoutingError, submitResponse, type RoutingTarget, updateForm } from "./service";
+import { createForm, deleteForm, RoutingError, setFormDisabled, submitResponse, type RoutingTarget, updateForm } from "./service";
 
 const FIX: ActionState = { status: "error", message: "Please fix the highlighted fields." };
 
@@ -51,6 +51,24 @@ export async function saveRoutingFormAction(id: string, _prev: ActionState, form
   revalidatePath("/routing-forms");
   revalidatePath(`/routing-forms/${id}`);
   return { status: "success", message: "Saved." };
+}
+
+const acceptingSchema = z.object({ id: z.string().min(1).max(64), accepting: z.boolean() });
+
+/** The overview's "Accepting" switch: opens or closes a form without saving the whole builder. */
+export async function setRoutingFormAcceptingAction(id: string, accepting: boolean): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = acceptingSchema.safeParse({ id, accepting });
+  if (!parsed.success) return { status: "error", message: "That didn't work. Please try again." };
+  try {
+    await setFormDisabled(getDb(), user.id, parsed.data.id, !parsed.data.accepting);
+  } catch (error) {
+    if (error instanceof RoutingError) return stateFor(error);
+    throw error;
+  }
+  revalidatePath("/routing-forms");
+  revalidatePath(`/routing-forms/${parsed.data.id}`);
+  return { status: "success", message: parsed.data.accepting ? "Accepting responses." : "Closed for responses." };
 }
 
 export async function deleteRoutingFormAction(id: string): Promise<void> {

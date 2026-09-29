@@ -1,57 +1,78 @@
+import { Plus, Star } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Card } from "@/components/ui/primitives";
+import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { getDb } from "@/db/client";
+import { DeleteScheduleButton } from "@/features/schedules/components/schedule-actions";
 import { ScheduleEditor } from "@/features/schedules/components/schedule-editor";
-import { deleteScheduleAction, saveScheduleAction, setDefaultScheduleAction } from "@/features/schedules/server/actions";
-import { getSchedule } from "@/features/schedules/server/service";
+import { ScheduleSwitcher, TroubleshooterCard } from "@/features/schedules/components/schedule-switcher";
+import {
+  createScheduleAction,
+  deleteScheduleAction,
+  saveScheduleAction,
+  setDefaultScheduleAction,
+} from "@/features/schedules/server/actions";
+import { loadScheduleCards } from "@/features/schedules/server/usage";
 import { listTimeZones } from "@/features/settings/schemas";
+import { formatDate, localDateOf } from "@/lib/availability/tz";
 import { requireUser } from "@/lib/auth/session";
+import { cn } from "@/lib/cn";
+import { requestTime } from "@/lib/clock";
 
 export const metadata: Metadata = { title: "Edit schedule" };
+
+const headerButton = cn(HEADER_BUTTON_CLASS, "h-11 bg-card md:h-10");
 
 export default async function ScheduleEditPage({ params }: PageProps<"/availability/[id]">) {
   const { id } = await params;
   const user = await requireUser();
-  const schedule = await getSchedule(getDb(), user.id, id);
+  const weekStart = user.weekStart ?? 1;
+  const cards = await loadScheduleCards(getDb(), user.id, weekStart);
+  const schedule = cards.find((s) => s.id === id);
   if (!schedule) notFound();
-  const { id: _id, isDefault, ...form } = schedule;
+  const { name, timeZone, rules, overrides } = schedule;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link href="/availability" className="text-sm text-muted underline-offset-4 hover:underline">
-            ← Availability
-          </Link>
-          <h1 className="text-2xl font-semibold">{schedule.name}</h1>
-        </div>
-        <div className="flex gap-2">
-          {!isDefault && (
-            <>
-              <form action={setDefaultScheduleAction.bind(null, id)}>
-                <Button type="submit" variant="secondary">
-                  Make default
-                </Button>
-              </form>
-              <form action={deleteScheduleAction.bind(null, id)}>
-                <Button type="submit" variant="ghost">
-                  Delete
-                </Button>
-              </form>
-            </>
-          )}
-        </div>
-      </div>
-      <Card>
-        <ScheduleEditor
-          initial={form}
-          timeZones={listTimeZones()}
-          weekStart={user.weekStart ?? 1}
-          action={saveScheduleAction.bind(null, id)}
-        />
-      </Card>
+    <div className={PAGE_CLASS}>
+      <PageHeader
+        title="Availability"
+        description="When people can book you. Event types use your default schedule unless you pick another."
+        actions={
+          <>
+            {!schedule.isDefault && (
+              <>
+                <DeleteScheduleButton name={name} action={deleteScheduleAction.bind(null, id)} />
+                <form action={setDefaultScheduleAction.bind(null, id)}>
+                  <Button type="submit" variant="outline" className={headerButton}>
+                    <Star aria-hidden />
+                    Set as default
+                  </Button>
+                </form>
+              </>
+            )}
+            <form action={createScheduleAction}>
+              <Button type="submit" variant="outline" className={headerButton}>
+                <Plus aria-hidden />
+                New schedule
+              </Button>
+            </form>
+          </>
+        }
+      />
+      <ScheduleSwitcher schedules={cards} activeId={id} />
+      <ScheduleEditor
+        // Remount on a different schedule so the editor starts from its saved state.
+        key={id}
+        initial={{ name, timeZone, rules, overrides }}
+        timeZones={listTimeZones()}
+        weekStart={weekStart}
+        today={formatDate(localDateOf(requestTime(), timeZone))}
+        eventTypeCount={schedule.eventTypeCount}
+        action={saveScheduleAction.bind(null, id)}
+      >
+        <TroubleshooterCard />
+      </ScheduleEditor>
     </div>
   );
 }

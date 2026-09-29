@@ -53,7 +53,7 @@ Verified in `node_modules/next/dist/docs/`. Re-check before using any other fram
 - [x] Email service (Nodemailer + React Email), sent through a queue job with retries [NTF-001]
 
 ### 0.5 Shell & ops
-- [x] Dashboard layout, navigation, and settings pages (profile, timezone, locale, week start, time format, theme) [ADM-005]. Note: small hand-written primitives in `components/ui/primitives.tsx` instead of the shadcn/ui CLI; adopt shadcn when M1 needs richer components (date picker, dialogs).
+- [x] Dashboard layout, navigation, and settings pages (profile, timezone, locale, week start, time format, theme) [ADM-005]. UI is built on shadcn/ui (`components.json`; add components with `npx shadcn@latest add <name>`).
 - [x] `/api/health/live` and `/api/health/ready` [ADM-004]
 - [x] Production Dockerfile (standalone), `docker-compose.yml` (app, worker, postgres), and migrations on start [ADM-001, NFR-013]
 

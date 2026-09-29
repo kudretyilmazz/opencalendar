@@ -1,53 +1,56 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card } from "@/components/ui/primitives";
+import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
-import { listForms } from "@/features/routing-forms/server/service";
+import { FormsTable } from "@/features/routing-forms/components/forms-table";
+import { LatestResponsesCard, RulesSummaryCard } from "@/features/routing-forms/components/overview-cards";
+import { loadRoutingOverview } from "@/features/routing-forms/server/overview";
+import { getProfile } from "@/features/settings/server/service";
 import { requireUser } from "@/lib/auth/session";
+import { requestTime } from "@/lib/clock";
 import { getEnv } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Routing forms" };
 
 export default async function RoutingFormsPage() {
   const user = await requireUser();
-  const forms = await listForms(getDb(), user.id);
-  const appUrl = getEnv().APP_URL;
+  const db = getDb();
+  const now = requestTime();
+  const [overview, profile] = await Promise.all([loadRoutingOverview(db, user.id, now), getProfile(db, user.id)]);
+  const prefs = { locale: profile?.locale ?? "en", timeZone: profile?.timeZone ?? "UTC", hour12: profile?.timeFormat === 12 };
+  const appUrl = getEnv().APP_URL.replace(/\/$/, "");
+  const { forms, titles, trend, latest } = overview;
+  const first = forms[0];
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Routing forms</h1>
-          <p className="text-sm text-muted">Ask a few questions and send visitors to the right event type, page or message.</p>
-        </div>
-        <Link href="/routing-forms/new" className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
-          New form
-        </Link>
-      </div>
-      {forms.length === 0 ? (
-        <Card className="text-sm text-muted">No routing forms yet.</Card>
+    <div className={PAGE_CLASS}>
+      <PageHeader
+        title="Routing forms"
+        description="Ask a few questions first, then send people to the right event type or a message."
+        actions={
+          <Button asChild className={HEADER_BUTTON_CLASS}>
+            <Link href="/routing-forms/new">
+              <Plus aria-hidden />
+              New form
+            </Link>
+          </Button>
+        }
+      />
+      {!first ? (
+        <Card className="gap-0 px-4 py-4 md:px-5 md:py-[18px]">
+          <p className="text-sm text-muted-foreground">No routing forms yet.</p>
+        </Card>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {forms.map((f) => (
-            <li key={f.id}>
-              <Card className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className={f.disabled ? "opacity-60" : ""}>
-                  <Link href={`/routing-forms/${f.id}`} className="font-medium underline-offset-4 hover:underline">
-                    {f.name}
-                  </Link>
-                  {f.teamName && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-xs">{f.teamName}</span>}
-                  {f.disabled && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-xs">Off</span>}
-                  <p className="text-sm text-muted">
-                    {appUrl}/forms/{f.id}
-                  </p>
-                </div>
-                <Link href={`/routing-forms/${f.id}/responses`} className="text-sm font-medium underline-offset-4 hover:underline">
-                  Responses
-                </Link>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <>
+          <FormsTable forms={forms} titles={titles} trend={trend} appUrl={appUrl} />
+          <div className="grid items-start gap-5 md:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <LatestResponsesCard responses={latest} forms={forms} titles={titles} now={now} prefs={prefs} csvForm={first} />
+            <RulesSummaryCard form={first} titles={titles} />
+          </div>
+        </>
       )}
     </div>
   );

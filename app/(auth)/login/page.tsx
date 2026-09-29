@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Alert } from "@/components/ui/primitives";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoginForm } from "@/features/auth/components/auth-forms";
 import { enabledSocialProviders } from "@/features/auth/server/queries";
 import { getSession } from "@/lib/auth/session";
@@ -24,7 +24,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const notice = params.reset ? NOTICES.reset : params.error === "disabled" ? NOTICES.disabled : null;
   return (
     <div className="flex flex-col gap-4">
-      {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+      {notice && (
+        <Alert variant={notice.tone === "error" ? "destructive" : "success"}>
+          <AlertDescription>{notice.text}</AlertDescription>
+        </Alert>
+      )}
       <LoginForm providers={enabledSocialProviders(getEnv())} next={next} />
     </div>
   );

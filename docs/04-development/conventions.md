@@ -27,7 +27,7 @@ db/
   schema/*.ts             # Drizzle tables, one file per domain
   migrations/
 jobs/                     # pg-boss job definitions + worker entry
-components/ui/            # shadcn/ui primitives
+components/ui/            # shadcn/ui components (owned source) + DatePicker/TimePicker/Combobox
 ```
 
 **Dependency rule:** `app → features → lib → (nothing app-specific)`. `lib/availability` must never import from `db`, `features` or `next`. See [system overview](../03-architecture/system-overview.md).
@@ -55,6 +55,15 @@ components/ui/            # shadcn/ui primitives
 - Store instants as `timestamptz` in UTC. Store schedule rules as local wall time plus an IANA timezone.
 - Never use `new Date()` directly in domain code. Inject a `now` (or a clock) so tests are deterministic.
 - Use `date-fns` + `@date-fns/tz`. Never do manual offset math.
+
+## UI components
+
+- Every control is a shadcn/ui component; no browser-default form controls. Add new ones with `npx shadcn@latest add <name>` (the components are owned source and may be adapted, e.g. `Alert` has a `success` variant and uses `role="status"` unless destructive).
+  The `radix-nova` registry imports `cn` from an npm package named `cn` and adds it as a dependency: after `add`, change `from "cn"` to `from "@/lib/cn"` and run `npm uninstall cn`. Answer "no" when it offers to overwrite an existing component.
+- Dates: `DatePicker`. Times: `TimePicker`. Long lists (time zones): `Combobox` with `timeZoneOptions`. Label + hint + error: `FormField`. Confirmations: `AlertDialog`, never `window.confirm`.
+- Radix `SelectItem` values must be non-empty: map "none/any" to a sentinel such as `__none` and back.
+- Inside a server-action form, an uncontrolled Radix control (`defaultValue`/`defaultChecked`) resets to its **first-mount** value when React resets the form after the action. Key it on the saved value so it remounts (see `profile-form.tsx`, `trigger-checkboxes.tsx`). A *controlled* Radix control is hit too — on reset it calls `onCheckedChange`/`onValueChange` with its first-mount value and rewrites your state — so editors that keep state in React and stay on screen after saving use `<form action={action} onSubmit={submitWithoutReset(action)}>` (`lib/submit-without-reset.ts`): keep `action` so submits made before hydration are replayed.
+- E2E: pick options with `pickOption(page, trigger, label)` and dates with `pickDate(page, trigger, iso)` from `tests/e2e/helpers.ts`.
 
 ## Server code
 

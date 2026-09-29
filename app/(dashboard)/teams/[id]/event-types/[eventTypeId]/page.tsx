@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card } from "@/components/ui/primitives";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { EventTypeFormView } from "@/features/event-types/components/event-type-form";
 import { eventTypeToForm } from "@/features/event-types/form-input";
@@ -8,7 +8,12 @@ import { HostsPanel } from "@/features/teams/components/hosts-panel";
 import { ManagedPanel } from "@/features/teams/components/managed-panel";
 import { PayloadForm } from "@/features/teams/components/payload-form";
 import { LOCKABLE_FIELDS, type LockableField, SCHEDULING_LABELS } from "@/features/teams/schemas";
-import { deleteTeamEventTypeAction, saveHostsAction, saveManagedAction, saveTeamEventTypeAction } from "@/features/teams/server/actions";
+import {
+  deleteTeamEventTypeAction,
+  saveHostsAction,
+  saveManagedAction,
+  saveTeamEventTypeAction,
+} from "@/features/teams/server/actions";
 import { getTeamEventType } from "@/features/teams/server/event-types";
 import { orNotFound } from "@/features/teams/server/load";
 import { getTeam, listMembers } from "@/features/teams/server/service";
@@ -32,11 +37,11 @@ export default async function TeamEventTypePage({ params }: PageProps<"/teams/[i
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <Link href={`/teams/${id}`} className="text-sm text-muted underline-offset-4 hover:underline">
+          <Link href={`/teams/${id}`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
             ← {team.name}
           </Link>
           <h1 className="text-2xl font-semibold">{et.title}</h1>
-          <p className="text-sm text-muted">{SCHEDULING_LABELS[et.schedulingType!]}</p>
+          <p className="text-sm text-muted-foreground">{SCHEDULING_LABELS[et.schedulingType!]}</p>
         </div>
         {!managed && (
           <a href={`${teamUrl}/${et.slug}`} className="text-sm font-medium underline-offset-4 hover:underline">
@@ -45,40 +50,67 @@ export default async function TeamEventTypePage({ params }: PageProps<"/teams/[i
         )}
       </div>
       <Card>
-        {managed ? (
-          <ManagedPanel
-            members={members}
-            assignees={et.hosts.map((h) => h.userId)}
-            lockedFields={et.lockedFields.filter((f): f is LockableField => f in LOCKABLE_FIELDS)}
-            action={saveManagedAction.bind(null, id, eventTypeId)}
-          />
-        ) : (
-          <HostsPanel
-            members={members}
-            initial={et.hosts.map((h) => ({ userId: h.userId, isFixed: h.isFixed, weight: h.weight, priority: h.priority }))}
-            windowDays={et.roundRobinWindowDays}
-            roundRobin={et.schedulingType === "round_robin"}
-            action={saveHostsAction.bind(null, id, eventTypeId)}
-          />
-        )}
+        <CardContent>
+          {managed ? (
+            <ManagedPanel
+              members={members}
+              assignees={et.hosts.map((h) => h.userId)}
+              lockedFields={et.lockedFields.filter((f): f is LockableField => f in LOCKABLE_FIELDS)}
+              action={saveManagedAction.bind(null, id, eventTypeId)}
+            />
+          ) : (
+            <HostsPanel
+              members={members}
+              initial={et.hosts.map((h) => ({
+                userId: h.userId,
+                isFixed: h.isFixed,
+                weight: h.weight,
+                priority: h.priority,
+              }))}
+              windowDays={et.roundRobinWindowDays}
+              roundRobin={et.schedulingType === "round_robin"}
+              action={saveHostsAction.bind(null, id, eventTypeId)}
+            />
+          )}
+        </CardContent>
       </Card>
       <Card>
-        <EventTypeFormView
-          initial={eventTypeToForm(et)}
-          schedules={[]}
-          profileUrl={teamUrl}
-          isNew={false}
-          calendars={[]}
-          connectedProviders={[]}
-          calendarSettings={{ conflictCalendarIds: [], destinationCalendarId: null }}
-          action={saveTeamEventTypeAction.bind(null, id, eventTypeId)}
-          team
-        />
+        <CardContent>
+          <EventTypeFormView
+            initial={eventTypeToForm(et)}
+            schedules={[]}
+            profileUrl={teamUrl}
+            isNew={false}
+            calendars={[]}
+            connectedProviders={[]}
+            calendarSettings={{ conflictCalendarIds: [], destinationCalendarId: null }}
+            action={saveTeamEventTypeAction.bind(null, id, eventTypeId)}
+            team
+          />
+        </CardContent>
       </Card>
-      <Card className="flex flex-col gap-3">
-        <h2 className="font-medium">Delete</h2>
-        <p className="text-sm text-muted">Not possible while it{managed ? " or a member copy" : ""} has upcoming bookings.</p>
-        <PayloadForm action={deleteTeamEventTypeAction.bind(null, id, eventTypeId)} payload={{}} submitLabel="Delete event type" variant="secondary" />
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Delete</h2>
+          </CardTitle>
+          <CardDescription>
+            Not possible while it{managed ? " or a member copy" : ""} has upcoming bookings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PayloadForm
+            action={deleteTeamEventTypeAction.bind(null, id, eventTypeId)}
+            payload={{}}
+            submitLabel="Delete event type"
+            variant="destructive"
+            confirm={{
+              title: "Delete this event type?",
+              description: "Its booking page stops working. This can't be undone.",
+              action: "Delete event type",
+            }}
+          />
+        </CardContent>
       </Card>
     </div>
   );

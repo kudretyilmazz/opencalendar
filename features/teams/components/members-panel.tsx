@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Field, Input, Select } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ActionState } from "@/lib/actions";
+import { initials, ROLE_LABELS } from "../overview";
 import { TEAM_ROLES, type TeamRole } from "../roles";
 import { PayloadForm } from "./payload-form";
 
@@ -16,34 +21,82 @@ type Actions = {
   cancelInvitation: (invitationId: string) => Promise<void>;
 };
 
-function MemberRow({ member, canManage, isSelf, actions }: { member: Member; canManage: boolean; isSelf: boolean; actions: Actions }) {
+type FutureBookings = "reassign" | "cancel";
+
+function RoleSelect({
+  id,
+  value,
+  onValueChange,
+  className,
+}: {
+  id: string;
+  value: TeamRole;
+  onValueChange: (role: TeamRole) => void;
+  className?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onValueChange(v as TeamRole)}>
+      <SelectTrigger id={id} className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {TEAM_ROLES.map((r) => (
+          <SelectItem key={r} value={r}>
+            {r}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function MemberRow({
+  member,
+  canManage,
+  isSelf,
+  actions,
+}: {
+  member: Member;
+  canManage: boolean;
+  isSelf: boolean;
+  actions: Actions;
+}) {
   const [role, setRole] = useState<TeamRole>(member.role);
-  const [futureBookings, setFutureBookings] = useState<"reassign" | "cancel">("reassign");
+  const [futureBookings, setFutureBookings] = useState<FutureBookings>("reassign");
   const id = member.userId;
   return (
-    <li className="flex flex-col gap-3 rounded-md border border-border p-3 text-sm">
-      <div>
-        <p className="font-medium">
-          {member.name}
-          {isSelf && <span className="text-muted"> (you)</span>}
-        </p>
-        <p className="text-muted">
-          {member.email} · {member.role}
-        </p>
+    <li className="flex flex-col gap-3 px-4 py-3 text-sm">
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
+        >
+          {initials(member.name)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p className="truncate font-medium">
+            {member.name}
+            {isSelf && <span className="text-muted-foreground"> (you)</span>}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+        </div>
+        <Badge variant={member.role === "member" ? "outline" : "muted"} className={member.role === "member" ? "text-muted-foreground" : undefined}>
+          {ROLE_LABELS[member.role]}
+        </Badge>
       </div>
       {canManage && (
         <div className="flex flex-wrap items-end gap-4">
-          <PayloadForm action={actions.changeRole} payload={{ userId: id, role }} submitLabel="Change role" variant="secondary" className="flex flex-wrap items-end gap-2">
+          <PayloadForm
+            action={actions.changeRole}
+            payload={{ userId: id, role }}
+            submitLabel="Change role"
+            variant="outline"
+            className="flex flex-wrap items-end gap-2"
+          >
             {() => (
-              <Field label="Role" htmlFor={`role-${id}`}>
-                <Select id={`role-${id}`} value={role} onChange={(e) => setRole(e.target.value as TeamRole)} className="w-32">
-                  {TEAM_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <FormField label="Role" htmlFor={`role-${id}`} className="w-auto">
+                <RoleSelect id={`role-${id}`} value={role} onValueChange={setRole} className="w-32" />
+              </FormField>
             )}
           </PayloadForm>
           <PayloadForm
@@ -51,16 +104,21 @@ function MemberRow({ member, canManage, isSelf, actions }: { member: Member; can
             payload={{ userId: id, futureBookings }}
             submitLabel={isSelf ? "Leave team" : "Remove"}
             submitAriaLabel={isSelf ? "Leave team" : `Remove ${member.name}`}
-            variant="ghost"
+            variant="destructive"
             className="flex flex-wrap items-end gap-2"
           >
             {() => (
-              <Field label="Their future team bookings" htmlFor={`future-${id}`}>
-                <Select id={`future-${id}`} value={futureBookings} onChange={(e) => setFutureBookings(e.target.value as "reassign" | "cancel")} className="w-56">
-                  <option value="reassign">Reassign to other hosts</option>
-                  <option value="cancel">Cancel them</option>
+              <FormField label="Their future team bookings" htmlFor={`future-${id}`} className="w-auto">
+                <Select value={futureBookings} onValueChange={(v) => setFutureBookings(v as FutureBookings)}>
+                  <SelectTrigger id={`future-${id}`} className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reassign">Reassign to other hosts</SelectItem>
+                    <SelectItem value="cancel">Cancel them</SelectItem>
+                  </SelectContent>
                 </Select>
-              </Field>
+              </FormField>
             )}
           </PayloadForm>
         </div>
@@ -70,50 +128,81 @@ function MemberRow({ member, canManage, isSelf, actions }: { member: Member; can
 }
 
 /** Members, roles, invitations (TEAM-002/003). Buttons follow the role; the server re-checks. */
-export function MembersPanel({ members, invitations, selfId, canManage, actions }: { members: Member[]; invitations: Invitation[]; selfId: string; canManage: boolean; actions: Actions }) {
+export function MembersPanel({
+  members,
+  invitations,
+  selfId,
+  canManage,
+  actions,
+}: {
+  members: Member[];
+  invitations: Invitation[];
+  selfId: string;
+  canManage: boolean;
+  actions: Actions;
+}) {
   const [invite, setInvite] = useState<{ email: string; role: TeamRole }>({ email: "", role: "member" });
   const self = members.find((m) => m.userId === selfId);
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-medium">Members</h2>
-      <ul className="flex flex-col gap-2">
+      <h2 className="text-base font-semibold">Members</h2>
+      <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
         {members.map((m) => (
           <MemberRow key={m.userId} member={m} canManage={canManage} isSelf={m.userId === selfId} actions={actions} />
         ))}
       </ul>
       {!canManage && self && (
-        <PayloadForm action={actions.remove} payload={{ userId: selfId, futureBookings: "reassign" }} submitLabel="Leave team" variant="secondary" />
+        <PayloadForm
+          action={actions.remove}
+          payload={{ userId: selfId, futureBookings: "reassign" }}
+          submitLabel="Leave team"
+          variant="outline"
+        />
       )}
       {canManage && (
         <>
-          <h3 className="text-sm font-medium">Invite someone</h3>
-          <PayloadForm action={actions.invite} payload={invite} submitLabel="Send invitation" className="flex flex-col gap-3">
+          <h3 id="invite" className="scroll-mt-6 text-sm font-semibold">
+            Invite someone
+          </h3>
+          <PayloadForm
+            action={actions.invite}
+            payload={invite}
+            submitLabel="Send invitation"
+            className="flex flex-col gap-3"
+          >
             {(errors) => (
               <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
-                <Field label="Email" htmlFor="invite-email" error={errors.email}>
-                  <Input id="invite-email" type="email" value={invite.email} onChange={(e) => setInvite((v) => ({ ...v, email: e.target.value }))} />
-                </Field>
-                <Field label="Role" htmlFor="invite-role">
-                  <Select id="invite-role" value={invite.role} onChange={(e) => setInvite((v) => ({ ...v, role: e.target.value as TeamRole }))}>
-                    {TEAM_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                <FormField label="Email" htmlFor="invite-email" error={errors.email}>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    value={invite.email}
+                    onChange={(e) => setInvite((v) => ({ ...v, email: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Role" htmlFor="invite-role">
+                  <RoleSelect
+                    id="invite-role"
+                    value={invite.role}
+                    onValueChange={(role) => setInvite((v) => ({ ...v, role }))}
+                    className="w-full"
+                  />
+                </FormField>
               </div>
             )}
           </PayloadForm>
           {invitations.length > 0 && (
             <ul className="flex flex-col gap-2 text-sm">
               {invitations.map((i) => (
-                <li key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-dashed border-border p-2">
+                <li
+                  key={i.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-dashed border-input px-3 py-2"
+                >
                   <span>
                     {i.email} · {i.role} · pending until {i.expires}
                   </span>
                   <form action={actions.cancelInvitation.bind(null, i.id)}>
-                    <Button variant="ghost" className="h-8" aria-label={`Cancel invitation for ${i.email}`}>
+                    <Button variant="ghost" size="sm" aria-label={`Cancel invitation for ${i.email}`}>
                       Cancel
                     </Button>
                   </form>

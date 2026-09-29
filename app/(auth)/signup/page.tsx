@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Card } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { SignupForm } from "@/features/auth/components/auth-forms";
 import { enabledSocialProviders, isSignupOpen } from "@/features/auth/server/queries";
@@ -15,16 +16,22 @@ export default async function SignupPage() {
   const env = getEnv();
   if (!(await isSignupOpen(getDb(), env))) {
     return (
-      <Card className="flex flex-col gap-3">
-        <h1 className="text-xl font-semibold">Sign-ups are closed</h1>
-        <p className="text-sm text-muted">
-          {env.SIGNUP_MODE === "invite_only"
-            ? "This instance is invite-only. Ask an administrator for an invitation."
-            : "New accounts can't be created on this instance."}
-        </p>
-        <Link href="/login" className="text-sm font-medium underline-offset-4 hover:underline">
-          Go to sign in
-        </Link>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h1 className="text-xl font-semibold">Sign-ups are closed</h1>
+          </CardTitle>
+          <CardDescription>
+            {env.SIGNUP_MODE === "invite_only"
+              ? "This instance is invite-only. Ask an administrator for an invitation."
+              : "New accounts can't be created on this instance."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="link" className="px-0">
+            <Link href="/login">Go to sign in</Link>
+          </Button>
+        </CardContent>
       </Card>
     );
   }

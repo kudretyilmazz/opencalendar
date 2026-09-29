@@ -140,6 +140,12 @@ export async function updateForm(db: Database, userId: string, formId: string, i
   await db.update(routingForm).set(input).where(eq(routingForm.id, formId));
 }
 
+/** Opens or closes a form for new responses (the builder's "Accepting responses" switch). */
+export async function setFormDisabled(db: Database, userId: string, formId: string, disabled: boolean): Promise<void> {
+  await getManagedForm(db, userId, formId);
+  await db.update(routingForm).set({ disabled }).where(eq(routingForm.id, formId));
+}
+
 export async function deleteForm(db: Database, userId: string, formId: string): Promise<void> {
   await getManagedForm(db, userId, formId);
   await db.delete(routingForm).where(eq(routingForm.id, formId));

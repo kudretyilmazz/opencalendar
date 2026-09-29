@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { type Browser, expect, type Page, test } from "@playwright/test";
-import { configureProfile, createEventType, guardBrowserErrors, signUpVerified } from "./helpers";
+import { configureProfile, createEventType, guardBrowserErrors, pickOption, signUpVerified } from "./helpers";
 import { uniqueEmail, waitForEmail } from "./mailpit";
 
 /**
@@ -83,13 +83,14 @@ async function hostWithCaldav(page: Page, calendarName: string) {
   await createEventType(page, "Intro call", { minNotice: "0" });
 
   await page.goto("/settings/calendars");
-  await page.getByLabel("Provider").selectOption("other");
+  await page.getByRole("button", { name: /^Other CalDAV/ }).click();
+  await pickOption(page, page.getByLabel("Provider"), "Other CalDAV server");
   await page.getByLabel("Server URL").fill(`${CALDAV_FROM_APP}/`);
   await page.getByLabel("Username").fill("host");
   await page.getByLabel("Password", { exact: true }).fill("hostpass");
   await page.getByRole("button", { name: "Connect CalDAV" }).click();
   await expect(page.getByText("Calendar connected.")).toBeVisible();
-  await expect(page.getByRole("button", { name: `Check ${calendarName} for conflicts` })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("switch", { name: `Check ${calendarName} for conflicts` })).toBeChecked();
   return { username, calPath };
 }
 
@@ -104,7 +105,7 @@ async function guestPage(browser: Browser, url: string) {
 test("OAuth providers stay hidden when not configured (INT-013)", async ({ page }) => {
   await signUpVerified(page, "Plain User", "plain");
   await page.goto("/settings/calendars");
-  await expect(page.getByRole("heading", { name: "CalDAV (iCloud, Fastmail, Nextcloud…)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Other CalDAV/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Connect Google Calendar/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Connect Zoom/ })).toHaveCount(0);
 });
@@ -161,6 +162,7 @@ test("ICS feed blocks availability (INT-005)", async ({ page, browser }) => {
     await configureProfile(page, username, HOST_TZ);
     await createEventType(page, "Intro call", { minNotice: "0" });
     await page.goto("/settings/calendars");
+    await page.getByRole("button", { name: /^Calendar feed/ }).click();
     await page.getByLabel("Calendar feed URL (.ics)").fill(`http://${HOST_FROM_APP}:5299/feed.ics`);
     await page.getByRole("button", { name: "Add feed" }).click();
     await expect(page.getByText("Feed added.")).toBeVisible();
@@ -187,7 +189,7 @@ test("locations: invitee picks phone or Jitsi; details show on the confirmation 
   await createEventType(page, "Intro call", { minNotice: "0" });
   await page.getByRole("link", { name: "Intro call", exact: true }).click();
   for (const kind of ["Jitsi Meet", "Phone call (you call the invitee)"]) {
-    await page.getByLabel("Add a location").selectOption({ label: kind });
+    await pickOption(page, page.getByLabel("Add a location"), kind);
     await page.getByRole("button", { name: "Add", exact: true }).click();
   }
   await page.getByRole("button", { name: "Save changes" }).click();

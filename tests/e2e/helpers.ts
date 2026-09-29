@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { uniqueEmail, waitForEmailLink } from "./mailpit";
 
 export const PASSWORD = "e2e correct horse battery";
@@ -10,7 +10,8 @@ export const PASSWORD = "e2e correct horse battery";
  * NetworkError. Next falls back to a normal navigation; a real failure still fails the test's
  * own assertions.
  */
-const ABORTED_FETCH = /_rsc=|Failed to fetch RSC payload|__nextjs_original-stack-frames|^TypeError: Load failed$|NetworkError when attempting to fetch resource/;
+const ABORTED_FETCH =
+  /_rsc=|Failed to fetch RSC payload|__nextjs_original-stack-frames|^TypeError: Load failed$|NetworkError when attempting to fetch resource/;
 
 /**
  * Development-only React warning: after a Server Action redirect, `next dev` re-renders the whole
@@ -29,7 +30,12 @@ export function guardBrowserErrors() {
     });
     page.on("console", (message) => {
       const text = message.text();
-      if (message.type() === "error" && !/Failed to load resource/.test(text) && !ABORTED_FETCH.test(text) && !DEV_ONLY.test(text)) {
+      if (
+        message.type() === "error" &&
+        !/Failed to load resource/.test(text) &&
+        !ABORTED_FETCH.test(text) &&
+        !DEV_ONLY.test(text)
+      ) {
         errors.push(`console: ${text}`);
       }
     });
@@ -45,8 +51,11 @@ export async function expectAccessible(page: Page) {
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   // For contrast failures, include the measured colors so a CI failure explains itself.
   const detail = (n: (typeof blocking)[number]["nodes"][number]) => {
-    const data = n.any.find((c) => c.id === "color-contrast")?.data as { fgColor?: string; bgColor?: string; contrastRatio?: number } | undefined;
-    return data?.fgColor ? `${n.target.join(" ")} (${data.fgColor} on ${data.bgColor}, ${data.contrastRatio})` : n.target.join(" ");
+    const data = n.any.find((c) => c.id === "color-contrast")?.data as
+      { fgColor?: string; bgColor?: string; contrastRatio?: number } | undefined;
+    return data?.fgColor
+      ? `${n.target.join(" ")} (${data.fgColor} on ${data.bgColor}, ${data.contrastRatio})`
+      : n.target.join(" ");
   };
   expect(blocking.map((v) => `${v.id}: ${v.nodes.map(detail).join(", ")}`)).toEqual([]);
 }
@@ -66,11 +75,42 @@ export async function signUpVerified(page: Page, name: string, prefix: string): 
   return email;
 }
 
+/**
+ * Picks an option in a shadcn Select or Combobox: opens the trigger, then clicks the option
+ * (rendered in a portal, so it is looked up on the page, not inside the trigger's form).
+ */
+export async function pickOption(page: Page, trigger: Locator, option: string | RegExp) {
+  await trigger.click();
+  await page.getByRole("option", { name: option, exact: typeof option === "string" }).click();
+}
+
+/** Picks `iso` (yyyy-MM-dd) in a shadcn DatePicker: opens it and pages forward to that month. */
+export async function pickDate(page: Page, trigger: Locator, iso: string) {
+  await trigger.click();
+  const day = page.locator(`[data-slot="popover-content"] td[data-day="${iso}"] button`);
+  for (let i = 0; i < 24 && !(await day.isVisible()); i++) {
+    await page.getByRole("button", { name: "Go to the Next Month" }).click();
+  }
+  await day.click();
+}
+
+/**
+ * Waits until React has hydrated the page's first form. Typing earlier is lost: hydration puts a
+ * controlled input back to its state value (seen in WebKit against the slower dev server).
+ */
+export async function waitForHydration(page: Page) {
+  await page.waitForFunction(() => {
+    const form = document.querySelector("main form");
+    return !!form && Object.keys(form).some((key) => key.startsWith("__reactFiber$"));
+  });
+}
+
 /** Sets username and time zone for a host. */
 export async function configureProfile(page: Page, username: string, timeZone: string) {
   await page.goto("/settings/profile");
+  await waitForHydration(page);
   await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Time zone").selectOption(timeZone);
+  await pickOption(page, page.getByLabel("Time zone"), timeZone.replaceAll("_", " "));
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Settings saved." })).toBeVisible();
 }
@@ -78,6 +118,7 @@ export async function configureProfile(page: Page, username: string, timeZone: s
 /** Creates an event type through the UI; returns its slug. */
 export async function createEventType(page: Page, title: string, options: { minNotice?: string } = {}) {
   await page.goto("/event-types/new");
+  await waitForHydration(page);
   await page.getByLabel("Title").fill(title);
   if (options.minNotice !== undefined) await page.getByLabel("Minimum notice", { exact: true }).fill(options.minNotice);
   await page.getByRole("button", { name: "Create event type" }).click();

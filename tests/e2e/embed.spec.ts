@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, type FrameLocator, type Page, test } from "@playwright/test";
-import { configureProfile, createEventType, signUpVerified } from "./helpers";
+import { configureProfile, createEventType, pickOption, signUpVerified } from "./helpers";
 import { uniqueEmail } from "./mailpit";
 
 /**
@@ -170,11 +170,11 @@ test("embed loader: a routing form embeds via forms/<id>, posts ready and auto-r
   await signUpVerified(page, "Rita Embed", "embedform");
   await page.goto("/routing-forms/new");
   await page.getByLabel("Name", { exact: true }).fill("Embedded qualify");
-  await page.locator("#newFieldType").selectOption("text");
+  await pickOption(page, page.locator("#newFieldType"), "Text");
   await page.getByRole("button", { name: "Add question" }).click();
   await page.locator("#f-label-0").fill("Company");
   await page.locator("#f-key-0").fill("company");
-  await page.locator("#fallback-kind").selectOption("message");
+  await pickOption(page, page.locator("#fallback-kind"), "A custom message");
   await page.locator("#fallback-message").fill("Thanks!");
   await page.getByRole("button", { name: "Save routing form" }).click();
   await expect(page).toHaveURL(/\/routing-forms\/(?!new$)[^/]+$/);

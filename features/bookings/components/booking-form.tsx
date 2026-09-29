@@ -3,7 +3,15 @@
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Alert, Button, Field, Input, Select } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import type { Question } from "@/features/event-types/schemas";
 import { emitEmbed, isEmbedded } from "@/lib/embed/bridge";
 import { type FormatPrefs, formatDateLong, formatTime } from "@/lib/format";
@@ -130,67 +138,77 @@ export function BookingForm({ config, slot, duration, prefs, tokens, onBack, onT
   return (
     <form onSubmit={submit} className="flex max-w-md flex-col gap-4">
       <div>
-        <Button type="button" variant="ghost" className="-ml-3 h-8" onClick={onBack}>
+        <Button type="button" variant="ghost" className="-ml-2.5" onClick={onBack}>
           <ChevronLeft className="size-4" aria-hidden /> Back
         </Button>
         <p className="font-medium">
           {formatDateLong(slot.start, prefs)}, {formatTime(slot.start, prefs)} – {formatTime(slot.end, prefs)}
         </p>
-        <p className="text-sm text-muted">{prefs.timeZone.replaceAll("_", " ")}</p>
+        <p className="text-sm text-muted-foreground">{prefs.timeZone.replaceAll("_", " ")}</p>
       </div>
-      <Field label="Your name" htmlFor="name" error={error?.fields?.["booker.name"]}>
+      <FormField label="Your name" htmlFor="name" error={error?.fields?.["booker.name"]}>
         <Input id="name" name="name" autoComplete="name" required maxLength={100} defaultValue={config.reschedule?.name ?? config.prefill.name} />
-      </Field>
-      <Field label="Email" htmlFor="email" error={error?.fields?.["booker.email"]}>
+      </FormField>
+      <FormField label="Email" htmlFor="email" error={error?.fields?.["booker.email"]}>
         <Input id="email" name="email" type="email" autoComplete="email" required defaultValue={config.reschedule?.email ?? config.prefill.email} />
-      </Field>
+      </FormField>
       {config.maxGuests > 0 && !config.reschedule && (
-        <Field label="Guests (optional)" htmlFor="guests" hint={`Up to ${config.maxGuests} emails, separated by commas.`} error={error?.fields?.guests}>
+        <FormField label="Guests (optional)" htmlFor="guests" hint={`Up to ${config.maxGuests} emails, separated by commas.`} error={error?.fields?.guests}>
           <Input id="guests" name="guests" />
-        </Field>
+        </FormField>
       )}
       {config.locations.length > 1 && (
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1 text-sm font-medium">Location</legend>
-          {config.locations.map((loc, i) => (
-            <label key={loc.kind} className="flex items-center gap-2 text-sm">
-              <input type="radio" name="location" checked={i === locationIndex} onChange={() => setLocationIndex(i)} />
-              {loc.label}
-            </label>
-          ))}
-        </fieldset>
+        <FieldSet className="gap-1.5">
+          <FieldLegend variant="label" className="mb-1">
+            Location
+          </FieldLegend>
+          <RadioGroup name="location" value={String(locationIndex)} onValueChange={(v) => setLocationIndex(Number(v))}>
+            {config.locations.map((loc, i) => (
+              <Field key={loc.kind} orientation="horizontal">
+                <RadioGroupItem id={`location-${i}`} value={String(i)} />
+                <FieldLabel htmlFor={`location-${i}`} className="font-normal">
+                  {loc.label}
+                </FieldLabel>
+              </Field>
+            ))}
+          </RadioGroup>
+        </FieldSet>
       )}
       {chosenKind === "phone_attendee" && (
-        <Field label="Your phone number" htmlFor="phone" hint="International format, e.g. +1 415 555 0100" error={error?.fields?.phone}>
+        <FormField label="Your phone number" htmlFor="phone" hint="International format, e.g. +1 415 555 0100" error={error?.fields?.phone}>
           <Input id="phone" name="phone" type="tel" autoComplete="tel" required />
-        </Field>
+        </FormField>
       )}
       {visible.map((q) => (
         <QuestionField key={q.key} question={q} value={answers[q.key]} error={error?.fields?.[`answers.${q.key}`]} onChange={(v) => setAnswer(q.key, v)} />
       ))}
       {config.recurring && !config.reschedule && (
-        <Field label="Number of occurrences" htmlFor="occurrences" hint={`Repeats every ${FREQUENCY_WORD[config.recurring.frequency]} at the same time.`}>
-          <Select id="occurrences" value={count} onChange={(e) => setCount(Number(e.target.value))}>
-            {Array.from({ length: config.recurring.maxCount }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n === 1 ? "Just this once" : `${n} times`}
-              </option>
-            ))}
+        <FormField label="Number of occurrences" htmlFor="occurrences" hint={`Repeats every ${FREQUENCY_WORD[config.recurring.frequency]} at the same time.`}>
+          <Select value={String(count)} onValueChange={(v) => setCount(Number(v))}>
+            <SelectTrigger id="occurrences" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: config.recurring.maxCount }, (_, i) => i + 1).map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n === 1 ? "Just this once" : `${n} times`}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
-        </Field>
+        </FormField>
       )}
-      <Field label="Notes (optional)" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          maxLength={2000}
-          defaultValue={config.prefill.notes}
-          className="min-h-20 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-        />
-      </Field>
-      {config.requiresConfirmation && !config.reschedule && <p className="text-sm text-muted">The host will confirm this booking before it’s final.</p>}
-      {error && <Alert tone="error">{error.message}</Alert>}
-      <Button type="submit" disabled={submitting}>
+      <FormField label="Notes (optional)" htmlFor="notes">
+        <Textarea id="notes" name="notes" maxLength={2000} defaultValue={config.prefill.notes} className="min-h-20" />
+      </FormField>
+      {config.requiresConfirmation && !config.reschedule && <p className="text-sm text-muted-foreground">The host will confirm this booking before it’s final.</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
+      )}
+      <Button type="submit" size="lg" disabled={submitting}>
+        {submitting && <Spinner />}
         {submitting ? "Sending…" : verb}
       </Button>
     </form>

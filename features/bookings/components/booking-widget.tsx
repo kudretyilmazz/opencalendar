@@ -2,7 +2,12 @@
 
 import { ChevronLeft, ChevronRight, Clock, Globe, MapPin, Repeat, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Input } from "@/components/ui/primitives";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { addDays, formatDate, isValidTimeZone, type LocalDate, localDateOf, parseDate, wallToUtc, weekdayOf } from "@/lib/availability/tz";
 import { cn } from "@/lib/cn";
 import { emitEmbed, watchDimensions } from "@/lib/embed/bridge";
@@ -179,15 +184,23 @@ export function BookingWidget(props: BookingWidgetProps) {
     return (
       <div className="grid gap-0 md:grid-cols-[260px_1fr]">
         <aside className={cn("flex flex-col gap-3 border-b border-border p-6 md:border-b-0 md:border-r", props.hideDetails && "sr-only")}>
-          <p className="text-sm text-muted">{props.hostName}</p>
+          <p className="text-sm text-muted-foreground">{props.hostName}</p>
           <h1 className="text-xl font-semibold">{props.title}</h1>
-          <p className="flex items-center gap-2 text-sm text-muted">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="size-4" aria-hidden /> {formatDuration(duration, locale)}
           </p>
           {props.description && <Markdown source={props.description} className="text-sm" />}
         </aside>
-        <div className="p-6 text-sm text-muted" aria-busy="true">
-          Loading availability…
+        <div className="p-6" aria-busy="true">
+          <span className="sr-only">Loading availability…</span>
+          <div className="flex max-w-md flex-col gap-3" aria-hidden>
+            <Skeleton className="h-6 w-40" />
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 35 }, (_, i) => (
+                <Skeleton key={i} className="aspect-square" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -228,29 +241,31 @@ export function BookingWidget(props: BookingWidgetProps) {
   return (
     <div className="grid gap-0 md:grid-cols-[260px_1fr]">
       <aside className={cn("flex flex-col gap-3 border-b border-border p-6 md:border-b-0 md:border-r", props.hideDetails && "sr-only")}>
-        <p className="text-sm text-muted">{props.hostName}</p>
+        <p className="text-sm text-muted-foreground">{props.hostName}</p>
         <h1 className="text-xl font-semibold">{props.title}</h1>
         {form.reschedule && (
           <Alert>
-            Rescheduling your booking from {formatDateLong(form.reschedule.previousStart, prefs)},{" "}
-            {formatTime(form.reschedule.previousStart, prefs)}.
+            <AlertDescription>
+              Rescheduling your booking from {formatDateLong(form.reschedule.previousStart, prefs)},{" "}
+              {formatTime(form.reschedule.previousStart, prefs)}.
+            </AlertDescription>
           </Alert>
         )}
-        <p className="flex items-center gap-2 text-sm text-muted">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Clock className="size-4" aria-hidden /> {formatDuration(duration, locale)}
         </p>
         {form.recurring && (
-          <p className="flex items-center gap-2 text-sm text-muted">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Repeat className="size-4" aria-hidden /> Can repeat {form.recurring.frequency === "weekly" ? "weekly" : "monthly"}, up to {form.recurring.maxCount} times
           </p>
         )}
         {props.seated && (
-          <p className="flex items-center gap-2 text-sm text-muted">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="size-4" aria-hidden /> Group event
           </p>
         )}
         {form.locations.map((loc) => (
-          <p key={loc.kind} className="flex items-center gap-2 text-sm text-muted">
+          <p key={loc.kind} className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="size-4" aria-hidden /> {loc.label}
           </p>
         ))}
@@ -263,9 +278,8 @@ export function BookingWidget(props: BookingWidgetProps) {
                 <Button
                   key={d}
                   type="button"
-                  variant={d === duration ? "primary" : "secondary"}
+                  variant={d === duration ? "default" : "outline"}
                   aria-pressed={d === duration}
-                  className="h-8 px-3"
                   onClick={() => {
                     setDuration(d);
                     setSelectedSlot(null);
@@ -304,19 +318,19 @@ export function BookingWidget(props: BookingWidgetProps) {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-9 w-9 px-0"
+                    size="icon"
                     aria-label="Previous month"
                     disabled={!canGoBack}
                     onClick={() => changeMonth(-1)}
                   >
                     <ChevronLeft className="size-4" aria-hidden />
                   </Button>
-                  <Button type="button" variant="ghost" className="h-9 w-9 px-0" aria-label="Next month" onClick={() => changeMonth(1)}>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Next month" onClick={() => changeMonth(1)}>
                     <ChevronRight className="size-4" aria-hidden />
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted" aria-hidden>
+              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground" aria-hidden>
                 {weekdayNames.map((w) => (
                   <div key={w}>{w}</div>
                 ))}
@@ -331,9 +345,10 @@ export function BookingWidget(props: BookingWidgetProps) {
                   const selected = key === selectedDate;
                   const label = formatDateLong(wallToUtc(d, 12 * 60, "UTC"), { ...prefs, timeZone: "UTC" });
                   return (
-                    <button
+                    <Button
                       key={key}
                       type="button"
+                      variant={selected ? "default" : available ? "secondary" : "ghost"}
                       disabled={!available}
                       aria-pressed={selected}
                       aria-label={`${label}${available ? "" : ", no times available"}`}
@@ -341,21 +356,30 @@ export function BookingWidget(props: BookingWidgetProps) {
                         setSelectedDate(key);
                         emitEmbed("dateSelected", { date: key });
                       }}
+                      // No transition: axe must never sample a day mid-fade from the dimmed loading state.
                       className={cn(
-                        "aspect-square rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        available ? "bg-accent font-medium hover:bg-primary hover:text-primary-foreground" : "text-muted opacity-50",
-                        selected && "bg-primary text-primary-foreground",
+                        "aspect-square h-auto w-full rounded-md text-sm transition-none",
+                        available && "font-medium hover:bg-primary hover:text-primary-foreground",
+                        !available && "text-muted-foreground",
                       )}
                     >
                       {d.day}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
-              {loading && <p className="mt-3 text-sm text-muted" aria-live="polite">Loading…</p>}
-              {loadError && <Alert tone="error" className="mt-3">{loadError}</Alert>}
+              {loading && (
+                <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+                  <Spinner /> Loading…
+                </p>
+              )}
+              {loadError && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertDescription>{loadError}</AlertDescription>
+                </Alert>
+              )}
               {!loading && !loadError && slots.length === 0 && (
-                <p className="mt-3 text-sm text-muted">No times available this month. Try the next month.</p>
+                <p className="mt-3 text-sm text-muted-foreground">No times available this month. Try the next month.</p>
               )}
               <div className="mt-6 flex flex-wrap items-end gap-3">
                 {props.lockTimeZone ? (
@@ -364,9 +388,9 @@ export function BookingWidget(props: BookingWidgetProps) {
                   </p>
                 ) : (
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="tz" className="flex items-center gap-1 text-sm font-medium">
+                  <Label htmlFor="tz" className="gap-1">
                     <Globe className="size-4" aria-hidden /> Time zone
-                  </label>
+                  </Label>
                   <Input
                     id="tz"
                     list="tz-options"
@@ -388,10 +412,10 @@ export function BookingWidget(props: BookingWidgetProps) {
                 </div>
                 )}
                 <div role="group" aria-label="Clock format" className="flex">
-                  <Button type="button" variant={hour12 ? "primary" : "secondary"} aria-pressed={hour12} className="h-10 rounded-r-none" onClick={() => setHour12(true)}>
+                  <Button type="button" variant={hour12 ? "default" : "outline"} aria-pressed={hour12} className="rounded-r-none" onClick={() => setHour12(true)}>
                     12h
                   </Button>
-                  <Button type="button" variant={!hour12 ? "primary" : "secondary"} aria-pressed={!hour12} className="h-10 rounded-l-none" onClick={() => setHour12(false)}>
+                  <Button type="button" variant={!hour12 ? "default" : "outline"} aria-pressed={!hour12} className="rounded-l-none" onClick={() => setHour12(false)}>
                     24h
                   </Button>
                 </div>
@@ -406,16 +430,16 @@ export function BookingWidget(props: BookingWidgetProps) {
                   <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto">
                     {(byDate.get(selectedDate) ?? []).map((s) => (
                       <li key={s.start}>
-                        <Button type="button" variant="secondary" className="w-full" onClick={() => void chooseSlot(s)}>
+                        <Button type="button" variant="outline" className="w-full" onClick={() => void chooseSlot(s)}>
                           {formatTime(s.start, prefs)}
-                          {props.seated && s.seats !== undefined && <span className="ml-2 text-xs text-muted">{s.seats} {s.seats === 1 ? "seat" : "seats"} left</span>}
+                          {props.seated && s.seats !== undefined && <span className="ml-2 text-xs text-muted-foreground">{s.seats} {s.seats === 1 ? "seat" : "seats"} left</span>}
                         </Button>
                       </li>
                     ))}
                   </ul>
                 </>
               ) : (
-                <p className="text-sm text-muted">Select a date to see available times.</p>
+                <p className="text-sm text-muted-foreground">Select a date to see available times.</p>
               )}
             </section>
           </div>

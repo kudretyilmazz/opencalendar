@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import type { ActionState } from "@/lib/actions";
 import { LOCKABLE_LABELS, type LockableField } from "../schemas";
 import { PayloadForm } from "./payload-form";
@@ -30,30 +32,47 @@ export function ManagedPanel({
   return (
     <section className="flex flex-col gap-3">
       <h2 className="font-medium">Assignment and locked fields</h2>
-      <p className="text-sm text-muted">
-        Each assigned member gets their own copy at their own URL. Locked fields always follow this template; members can change the rest.
+      <p className="text-sm text-muted-foreground">
+        Each assigned member gets their own copy at their own URL. Locked fields always follow this template; members
+        can change the rest.
       </p>
-      <PayloadForm action={action} payload={{ assignees: [...assigned], lockedFields: [...locked] }} submitLabel="Save assignments">
+      <PayloadForm
+        action={action}
+        payload={{ assignees: [...assigned], lockedFields: [...locked] }}
+        submitLabel="Save assignments"
+      >
         {() => (
           <div className="grid gap-4 sm:grid-cols-2">
-            <fieldset className="flex flex-col gap-2 text-sm">
-              <legend className="mb-1 font-medium">Assigned members</legend>
+            <FieldSet className="gap-2">
+              <FieldLegend variant="label">Assigned members</FieldLegend>
               {members.map((m) => (
-                <label key={m.userId} className="flex items-center gap-2">
-                  <input type="checkbox" checked={assigned.has(m.userId)} onChange={(e) => setAssigned((s) => flip(s, m.userId, e.target.checked))} />
-                  {m.name}
-                </label>
+                <Field key={m.userId} orientation="horizontal">
+                  <Checkbox
+                    id={`assign-${m.userId}`}
+                    checked={assigned.has(m.userId)}
+                    onCheckedChange={(v) => setAssigned((s) => flip(s, m.userId, v === true))}
+                  />
+                  <FieldLabel htmlFor={`assign-${m.userId}`} className="font-normal">
+                    {m.name}
+                  </FieldLabel>
+                </Field>
               ))}
-            </fieldset>
-            <fieldset className="flex flex-col gap-2 text-sm">
-              <legend className="mb-1 font-medium">Locked fields</legend>
+            </FieldSet>
+            <FieldSet className="gap-2">
+              <FieldLegend variant="label">Locked fields</FieldLegend>
               {(Object.keys(LOCKABLE_LABELS) as LockableField[]).map((f) => (
-                <label key={f} className="flex items-center gap-2">
-                  <input type="checkbox" checked={locked.has(f)} onChange={(e) => setLocked((s) => flip(s, f, e.target.checked))} />
-                  {LOCKABLE_LABELS[f]}
-                </label>
+                <Field key={f} orientation="horizontal">
+                  <Checkbox
+                    id={`lock-${f}`}
+                    checked={locked.has(f)}
+                    onCheckedChange={(v) => setLocked((s) => flip(s, f, v === true))}
+                  />
+                  <FieldLabel htmlFor={`lock-${f}`} className="font-normal">
+                    {LOCKABLE_LABELS[f]}
+                  </FieldLabel>
+                </Field>
               ))}
-            </fieldset>
+            </FieldSet>
           </div>
         )}
       </PayloadForm>

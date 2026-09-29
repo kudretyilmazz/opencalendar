@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Button, Card, Input, Select } from "@/components/ui/primitives";
+import { PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getDb } from "@/db/client";
 import { explainDay, REASON_LABELS } from "@/features/bookings/server/explain";
 import { externalBusyFor } from "@/features/calendars/server/runtime";
@@ -66,80 +72,92 @@ export default async function TroubleshootPage({ searchParams }: PageProps<"/ava
   const prefs = { locale: user.locale ?? "en", timeZone: result?.timeZone ?? tz, hour12: user.timeFormat === 12 };
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div>
-        <Link href="/availability" className="text-sm text-muted underline-offset-4 hover:underline">
+    <div className={PAGE_CLASS}>
+      <div className="flex flex-col gap-3">
+        <Link href="/availability" className="flex min-h-11 items-center self-start text-[13px] font-medium text-muted-foreground hover:text-foreground md:min-h-0">
           ← Availability
         </Link>
-        <h1 className="text-2xl font-semibold">Troubleshooter</h1>
-        <p className="text-sm text-muted">See every possible start time of a day and why it can or can’t be booked.</p>
+        <PageHeader title="Troubleshooter" description="See every possible start time of a day and why it can or can’t be booked." />
       </div>
       {!eventType ? (
-        <Card className="text-sm text-muted">Create an event type first.</Card>
+        <Card className="gap-0 px-5 py-[18px] text-muted-foreground">Create an event type first.</Card>
       ) : (
         <>
-          <form className="flex flex-wrap items-end gap-3" action="/availability/troubleshoot">
-            <label className="flex flex-col gap-1 text-sm">
-              Event type
-              <Select name="eventType" defaultValue={eventType.id} className="w-56">
-                {eventTypes.map((et) => (
-                  <option key={et.id} value={et.id}>
-                    {et.title}
-                  </option>
-                ))}
-                {teamTypes.map((et) => (
-                  <option key={et.id} value={et.id}>
-                    {et.teamName}: {et.title}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {isTeam && (
-              <label className="flex flex-col gap-1 text-sm">
-                Host
-                <Select name="host" defaultValue={host.id} className="w-44">
-                  {hosts.map((h) => (
-                    <option key={h.userId} value={h.userId}>
-                      {h.name}
-                    </option>
-                  ))}
+          <Card className="gap-0 px-5 py-4">
+            <form className="flex flex-wrap items-end gap-3" action="/availability/troubleshoot">
+              <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+                <Label htmlFor="troubleshoot-event-type">Event type</Label>
+                <Select name="eventType" defaultValue={eventType.id}>
+                  <SelectTrigger id="troubleshoot-event-type" className="w-full data-[size=default]:h-11 sm:w-56 md:data-[size=default]:h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventTypes.map((et) => (
+                      <SelectItem key={et.id} value={et.id}>
+                        {et.title}
+                      </SelectItem>
+                    ))}
+                    {teamTypes.map((et) => (
+                      <SelectItem key={et.id} value={et.id}>
+                        {et.teamName}: {et.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-              </label>
-            )}
-            <label className="flex flex-col gap-1 text-sm">
-              Date
-              <Input type="date" name="date" defaultValue={date} className="w-44" />
-            </label>
-            <Button type="submit" variant="secondary">
-              Show
-            </Button>
-          </form>
-          <Card className="p-0">
-            <table className="w-full text-sm">
-              <caption className="p-4 text-left text-muted">
+              </div>
+              {isTeam && (
+                <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+                  <Label htmlFor="troubleshoot-host">Host</Label>
+                  {/* Keyed on the event type so its hosts' default is picked up after "Show". */}
+                  <Select key={eventType.id} name="host" defaultValue={host.id}>
+                    <SelectTrigger id="troubleshoot-host" className="w-full data-[size=default]:h-11 sm:w-44 md:data-[size=default]:h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hosts.map((h) => (
+                        <SelectItem key={h.userId} value={h.userId}>
+                          {h.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+                <Label htmlFor="troubleshoot-date">Date</Label>
+                <DatePicker id="troubleshoot-date" name="date" defaultValue={date} weekStartsOn={user.weekStart ?? 1} className="w-full sm:w-48 [&>button]:h-11 md:[&>button]:h-10" />
+              </div>
+              <Button type="submit" variant="outline" className="h-11 w-full rounded-md bg-card px-3.5 sm:w-auto md:h-10">
+                Show
+              </Button>
+            </form>
+          </Card>
+          <Card className="gap-0 py-0">
+            <Table>
+              <TableCaption className="mt-0 caption-top p-4 text-left">
                 {date} · {prefs.timeZone.replaceAll("_", " ")} · {eventType.durationMinutes} min{isTeam ? ` · ${host.name}` : ""}
-              </caption>
-              <thead>
-                <tr className="border-y border-border text-left">
-                  <th scope="col" className="px-4 py-2 font-medium">Time</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Because of</th>
-                </tr>
-              </thead>
-              <tbody>
+              </TableCaption>
+              <TableHeader>
+                <TableRow className="border-t">
+                  <TableHead scope="col" className="px-4">Time</TableHead>
+                  <TableHead scope="col" className="px-4">Status</TableHead>
+                  <TableHead scope="col" className="px-4">Because of</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {result?.slots.map((s) => (
-                  <tr key={s.start} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 tabular-nums">
+                  <TableRow key={s.start}>
+                    <TableCell className="px-4 tabular-nums">
                       {formatTime(s.start, prefs)} – {formatTime(s.end, prefs)}
-                    </td>
-                    <td className={cn("px-4 py-2", s.status === "available" ? "text-success" : "text-muted")}>
+                    </TableCell>
+                    <TableCell className={cn("px-4", s.status === "available" ? "text-success" : "text-muted-foreground")}>
                       {s.status === "available" ? `Available${s.seatsRemaining !== undefined ? ` (${s.seatsRemaining} seats left)` : ""}` : REASON_LABELS[s.status]}
-                    </td>
-                    <td className="px-4 py-2 text-muted">{s.source ?? ""}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-4 text-muted-foreground">{s.source ?? ""}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </Card>
         </>
       )}

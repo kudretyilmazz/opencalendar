@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import { ArrowLeft, CalendarRange, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { Button, Card } from "@/components/ui/primitives";
+import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getDb } from "@/db/client";
 import { MembersPanel } from "@/features/teams/components/members-panel";
 import { PayloadForm } from "@/features/teams/components/payload-form";
+import { SectionCard } from "@/features/teams/components/section-card";
+import { RolePill, SMALL_BUTTON_CLASS, TeamLogo } from "@/features/teams/components/team-cards";
 import { TeamForm } from "@/features/teams/components/team-form";
 import { atLeast } from "@/features/teams/roles";
 import { SCHEDULING_LABELS, SCHEDULING_TYPES } from "@/features/teams/schemas";
@@ -43,69 +48,114 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
   const appUrl = getEnv().APP_URL;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <Link href="/teams" className="text-sm text-muted underline-offset-4 hover:underline">
-            ← Teams
-          </Link>
-          <h1 className="text-2xl font-semibold">{team.name}</h1>
-          <p className="text-sm text-muted">Your role: {team.role}</p>
-        </div>
-        <div className="flex gap-4 text-sm font-medium">
-          <Link href={`/teams/${id}/availability`} className="underline-offset-4 hover:underline">
-            Team availability
-          </Link>
-          <a href={`${appUrl}/team/${team.slug}`} className="underline-offset-4 hover:underline">
-            Public page ↗
-          </a>
-        </div>
+    <div className={PAGE_CLASS}>
+      <div className="flex flex-col gap-3">
+        <Link
+          href="/teams"
+          className="flex min-h-11 w-fit items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground md:min-h-0"
+        >
+          <ArrowLeft aria-hidden className="size-3.5" />
+          Teams
+        </Link>
+        <PageHeader
+          title={
+            <span className="flex items-center gap-3">
+              <TeamLogo name={team.name} logoUrl={team.logoUrl} />
+              <span className="min-w-0 break-words">{team.name}</span>
+            </span>
+          }
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs">/team/{team.slug}</span>
+              <span aria-hidden>·</span>
+              <span>Your role:</span>
+              <RolePill role={team.role} />
+            </span>
+          }
+          actions={
+            <>
+              <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
+                <Link href={`/teams/${id}/availability`}>
+                  <CalendarRange aria-hidden />
+                  Team availability
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
+                <a href={`${appUrl}/team/${team.slug}`}>
+                  <ExternalLink aria-hidden />
+                  Public page
+                </a>
+              </Button>
+            </>
+          }
+        />
       </div>
 
-      <Card className="flex flex-col gap-4">
-        <h2 className="font-medium">Event types</h2>
-        {eventTypes.length === 0 && <p className="text-sm text-muted">No team event types yet.</p>}
-        <ul className="flex flex-col gap-2">
-          {eventTypes.map((et) => (
-            <li key={et.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm">
-              <div className={et.enabled ? "" : "opacity-60"}>
-                {admin ? (
-                  <Link href={`/teams/${id}/event-types/${et.id}`} className="font-medium underline-offset-4 hover:underline">
-                    {et.title}
-                  </Link>
-                ) : (
-                  <span className="font-medium">{et.title}</span>
+      <SectionCard title="Event types" description="Round-robin, collective and managed event types this team shares.">
+        {eventTypes.length === 0 && <p className="text-sm text-muted-foreground">No team event types yet.</p>}
+        {eventTypes.length > 0 && (
+          <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+            {eventTypes.map((et) => (
+              <li key={et.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div
+                  className={et.enabled ? "flex min-w-0 flex-col gap-0.5" : "flex min-w-0 flex-col gap-0.5 opacity-60"}
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    {admin ? (
+                      <Link href={`/teams/${id}/event-types/${et.id}`} className="font-medium hover:underline">
+                        {et.title}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{et.title}</span>
+                    )}
+                    <Badge variant="muted">{SCHEDULING_LABELS[et.schedulingType!].split(" —")[0]}</Badge>
+                    {!et.enabled && <Badge variant="outline">Off</Badge>}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {et.hosts.length} host{et.hosts.length === 1 ? "" : "s"}
+                    {et.schedulingType !== "managed" && (
+                      <>
+                        {" · "}
+                        <span className="font-mono text-xs">
+                          /team/{team.slug}/{et.slug}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </div>
+                {admin && (
+                  <form action={toggleTeamEventTypeAction.bind(null, id, et.id, !et.enabled)}>
+                    <Button variant="outline" className={`${SMALL_BUTTON_CLASS} bg-card`}>
+                      {et.enabled ? "Turn off" : "Turn on"}
+                    </Button>
+                  </form>
                 )}
-                <p className="text-muted">
-                  {SCHEDULING_LABELS[et.schedulingType!].split(" —")[0]} · {et.hosts.length} host{et.hosts.length === 1 ? "" : "s"}
-                  {et.schedulingType !== "managed" && ` · /team/${team.slug}/${et.slug}`}
-                </p>
-              </div>
-              {admin && (
-                <form action={toggleTeamEventTypeAction.bind(null, id, et.id, !et.enabled)}>
-                  <Button variant="secondary" className="h-8">
-                    {et.enabled ? "Turn off" : "Turn on"}
-                  </Button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
         {admin && (
           <div className="flex flex-wrap gap-2">
             {SCHEDULING_TYPES.map((t) => (
-              <Link key={t} href={`/teams/${id}/event-types/new?type=${t}`} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-accent">
-                New {SCHEDULING_LABELS[t].split(" —")[0].toLowerCase()}
-              </Link>
+              <Button key={t} asChild variant="outline" className={`${SMALL_BUTTON_CLASS} bg-card`}>
+                <Link href={`/teams/${id}/event-types/new?type=${t}`}>
+                  New {SCHEDULING_LABELS[t].split(" —")[0].toLowerCase()}
+                </Link>
+              </Button>
             ))}
           </div>
         )}
-      </Card>
+      </SectionCard>
 
-      <Card>
+      <SectionCard id="members">
         <MembersPanel
           members={members}
-          invitations={invitations.map((i) => ({ id: i.id, email: i.email, role: i.role, expires: i.expiresAt.toISOString().slice(0, 10) }))}
+          invitations={invitations.map((i) => ({
+            id: i.id,
+            email: i.email,
+            role: i.role,
+            expires: i.expiresAt.toISOString().slice(0, 10),
+          }))}
           selfId={user.id}
           canManage={admin}
           actions={{
@@ -115,41 +165,70 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
             cancelInvitation: cancelInvitationAction.bind(null, id),
           }}
         />
-      </Card>
+      </SectionCard>
 
       {admin && (
-        <Card>
+        <SectionCard>
           <WorkflowsPanel
             scope={{ kind: "team", id }}
-            workflows={workflows.map(({ id: wid, name, trigger, offsetMinutes, recipient, address, subject, body, enabled, isDefault }) => ({ id: wid, name, trigger, offsetMinutes, recipient, address, subject, body, enabled, isDefault }))}
+            workflows={workflows.map(
+              ({ id: wid, name, trigger, offsetMinutes, recipient, address, subject, body, enabled, isDefault }) => ({
+                id: wid,
+                name,
+                trigger,
+                offsetMinutes,
+                recipient,
+                address,
+                subject,
+                body,
+                enabled,
+                isDefault,
+              }),
+            )}
           />
-        </Card>
+        </SectionCard>
       )}
 
       {admin && (
-        <Card>
+        <SectionCard>
           <TeamWebhooksPanel teamId={id} userId={user.id} />
-        </Card>
+        </SectionCard>
       )}
 
       {admin && (
-        <Card className="flex flex-col gap-4">
-          <h2 className="font-medium">Settings</h2>
+        <SectionCard title="Settings" description="Name, public URL, logo and brand color.">
           <TeamForm
-            initial={{ name: team.name, slug: team.slug, logoUrl: team.logoUrl ?? "", brandColor: team.brandColor ?? "" }}
+            initial={{
+              name: team.name,
+              slug: team.slug,
+              logoUrl: team.logoUrl ?? "",
+              brandColor: team.brandColor ?? "",
+            }}
             action={updateTeamAction.bind(null, id)}
             appUrl={appUrl}
             submitLabel="Save team"
           />
-        </Card>
+        </SectionCard>
       )}
 
       {team.role === "owner" && (
-        <Card className="flex flex-col gap-3">
-          <h2 className="font-medium">Delete team</h2>
-          <p className="text-sm text-muted">Deletes the team, its event types and routing forms. Not possible while there are upcoming bookings.</p>
-          <PayloadForm action={deleteTeamAction.bind(null, id)} payload={{}} submitLabel="Delete team" variant="secondary" />
-        </Card>
+        <SectionCard
+          title="Delete team"
+          description="Deletes the team, its event types and routing forms. Not possible while there are upcoming bookings."
+          className="border-destructive-border"
+        >
+          <PayloadForm
+            action={deleteTeamAction.bind(null, id)}
+            payload={{}}
+            submitLabel="Delete team"
+            variant="destructive"
+            confirm={{
+              title: `Delete ${team.name}?`,
+              description: "The team, its event types and routing forms are removed. This can't be undone.",
+              action: "Delete team",
+            }}
+          />
+        </SectionCard>
       )}
     </div>
   );
