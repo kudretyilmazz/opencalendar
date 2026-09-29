@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db/client";
+import { EmbedButton } from "@/features/embed/components/embed-dialog";
+import { teamEventTypeTarget } from "@/features/embed/targets";
 import { EventTypeFormView } from "@/features/event-types/components/event-type-form";
 import { eventTypeToForm } from "@/features/event-types/form-input";
+import { durationsOf } from "@/features/event-types/server/service";
 import { HostsPanel } from "@/features/teams/components/hosts-panel";
 import { ManagedPanel } from "@/features/teams/components/managed-panel";
 import { PayloadForm } from "@/features/teams/components/payload-form";
@@ -30,8 +33,15 @@ export default async function TeamEventTypePage({ params }: PageProps<"/teams/[i
   const team = await orNotFound(getTeam(db, user.id, id));
   const et = await orNotFound(getTeamEventType(db, user.id, id, eventTypeId));
   const members = (await listMembers(db, user.id, id)).map((m) => ({ userId: m.userId, name: m.name }));
-  const teamUrl = `${getEnv().APP_URL}/team/${team.slug}`;
+  const appUrl = getEnv().APP_URL;
+  const teamUrl = `${appUrl}/team/${team.slug}`;
   const managed = et.schedulingType === "managed";
+  const embed = teamEventTypeTarget(team.slug, {
+    slug: et.slug,
+    title: et.title,
+    durations: durationsOf(et),
+    schedulingType: et.schedulingType,
+  });
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
@@ -44,9 +54,12 @@ export default async function TeamEventTypePage({ params }: PageProps<"/teams/[i
           <p className="text-sm text-muted-foreground">{SCHEDULING_LABELS[et.schedulingType!]}</p>
         </div>
         {!managed && (
-          <a href={`${teamUrl}/${et.slug}`} className="text-sm font-medium underline-offset-4 hover:underline">
-            Open booking page ↗
-          </a>
+          <div className="flex flex-wrap items-center gap-3">
+            {embed && <EmbedButton target={embed} appUrl={appUrl} className="h-10 rounded-md bg-card px-3.5 text-sm" />}
+            <a href={`${teamUrl}/${et.slug}`} className="text-sm font-medium underline-offset-4 hover:underline">
+              Open booking page ↗
+            </a>
+          </div>
         )}
       </div>
       <Card>

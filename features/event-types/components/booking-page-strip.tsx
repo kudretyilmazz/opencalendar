@@ -2,6 +2,8 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmbedButton } from "@/features/embed/components/embed-dialog";
+import type { EmbedTarget } from "@/features/embed/target";
 import { initials } from "../list-view";
 
 const pill =
@@ -14,6 +16,8 @@ export function BookingPageStrip({
   display,
   publicCount,
   hiddenCount,
+  embed,
+  appUrl,
 }: {
   name: string;
   /** Null until the host picks a username. */
@@ -21,6 +25,9 @@ export function BookingPageStrip({
   display: string;
   publicCount: number;
   hiddenCount: number;
+  /** The profile embed; null until the host picks a username. */
+  embed: EmbedTarget | null;
+  appUrl: string;
 }) {
   return (
     <Card
@@ -64,6 +71,14 @@ export function BookingPageStrip({
               Preview page
             </a>
           </Button>
+        )}
+        {embed && (
+          <EmbedButton
+            target={embed}
+            appUrl={appUrl}
+            aria-label="Embed your booking page"
+            className="h-11 rounded-md bg-transparent px-3 text-[13px] md:h-9 [&_svg]:size-3.5"
+          />
         )}
       </div>
     </Card>

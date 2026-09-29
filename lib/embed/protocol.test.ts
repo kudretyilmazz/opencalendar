@@ -10,6 +10,9 @@ describe("parseEmbedOptions (EMB-004)", () => {
       hideDetails: true,
       layout: "column",
     });
+    expect(parseEmbedOptions({ embed: "1", layout: "week" })?.layout).toBe("week");
+    expect(parseEmbedOptions({ embed: "1", layout: "month" })?.layout).toBe("month");
+    expect(parseEmbedOptions({ embed: "1", layout: "grid" })?.layout).toBe("month");
     expect(parseEmbedOptions({ embed: "1", theme: "neon", brand: "red;background:url(x)" })).toEqual({ theme: "auto", brand: null, hideDetails: false, layout: "month" });
   });
 });

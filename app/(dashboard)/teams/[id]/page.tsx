@@ -5,6 +5,9 @@ import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-h
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getDb } from "@/db/client";
+import { EmbedButton } from "@/features/embed/components/embed-dialog";
+import { teamEventTypeTarget, teamTarget } from "@/features/embed/targets";
+import { durationsOf } from "@/features/event-types/server/service";
 import { MembersPanel } from "@/features/teams/components/members-panel";
 import { PayloadForm } from "@/features/teams/components/payload-form";
 import { SectionCard } from "@/features/teams/components/section-card";
@@ -46,6 +49,18 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
     admin ? listTeamWorkflows(db, user.id, id) : [],
   ]);
   const appUrl = getEnv().APP_URL;
+  const teamEmbed = teamTarget({ slug: team.slug, name: team.name });
+  const embeds = new Map(
+    eventTypes.map((et) => [
+      et.id,
+      teamEventTypeTarget(team.slug, {
+        slug: et.slug,
+        title: et.title,
+        durations: durationsOf(et),
+        schedulingType: et.schedulingType,
+      }),
+    ]),
+  );
 
   return (
     <div className={PAGE_CLASS}>
@@ -80,6 +95,14 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
                   Team availability
                 </Link>
               </Button>
+              {teamEmbed && (
+                <EmbedButton
+                  target={teamEmbed}
+                  appUrl={appUrl}
+                  aria-label="Embed team page"
+                  className={`${HEADER_BUTTON_CLASS} bg-card`}
+                />
+              )}
               <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
                 <a href={`${appUrl}/team/${team.slug}`}>
                   <ExternalLink aria-hidden />
@@ -123,13 +146,23 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
                     )}
                   </span>
                 </div>
-                {admin && (
-                  <form action={toggleTeamEventTypeAction.bind(null, id, et.id, !et.enabled)}>
-                    <Button variant="outline" className={`${SMALL_BUTTON_CLASS} bg-card`}>
-                      {et.enabled ? "Turn off" : "Turn on"}
-                    </Button>
-                  </form>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {embeds.get(et.id) && (
+                    <EmbedButton
+                      target={embeds.get(et.id)!}
+                      appUrl={appUrl}
+                      aria-label={`Embed ${et.title}`}
+                      className={`${SMALL_BUTTON_CLASS} bg-card`}
+                    />
+                  )}
+                  {admin && (
+                    <form action={toggleTeamEventTypeAction.bind(null, id, et.id, !et.enabled)}>
+                      <Button variant="outline" className={`${SMALL_BUTTON_CLASS} bg-card`}>
+                        {et.enabled ? "Turn off" : "Turn on"}
+                      </Button>
+                    </form>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

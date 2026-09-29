@@ -1,20 +1,39 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Clock, Globe, MapPin, Repeat, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
-import { addDays, formatDate, isValidTimeZone, type LocalDate, localDateOf, parseDate, wallToUtc, weekdayOf } from "@/lib/availability/tz";
+import type { BookingLayout } from "@/features/embed/target";
+import { addDays, formatDate, type LocalDate, localDateOf, parseDate } from "@/lib/availability/tz";
 import { cn } from "@/lib/cn";
 import { emitEmbed, watchDimensions } from "@/lib/embed/bridge";
-import { formatDateLong, formatDuration, formatTime, prefers12Hour } from "@/lib/format";
-import { Markdown } from "@/lib/markdown";
+import { withLayoutParam } from "@/lib/embed/booking-link";
+import { formatWeekdayDate, prefers12Hour } from "@/lib/format";
 import { holdSlotAction } from "../server/public-actions";
+import { BookerPreferences } from "./booker-preferences";
+import {
+  anchorDay,
+  effectiveLayout,
+  findSlotByStart,
+  inRange,
+  maxDate,
+  type Month,
+  monthOf,
+  monthRange,
+  normalizeWeekStart,
+  rangeKey,
+  rangeWindow,
+  type Slot,
+  shiftMonth,
+  startOfWeek,
+  weekFor,
+  weekRange,
+} from "./booker-view";
+import { BookingDetails } from "./booking-details";
 import { BookingForm, type BookingFormConfig } from "./booking-form";
+import { LayoutSwitcher, useNarrowScreen } from "./layout-switcher";
+import { MonthCalendar } from "./month-calendar";
+import { WeekCalendar } from "./week-calendar";
 
 export type BookingWidgetProps = {
   title: string;
@@ -28,13 +47,18 @@ export type BookingWidgetProps = {
   /** Initial duration and date from URL prefill (BKG-014). */
   initialDuration?: number;
   initialDate?: string;
+  /** `month=yyyy-MM`: opens that month without picking a day. */
+  initialMonth?: string;
+  /** `slot=` link: epoch ms of a start to open the booking form for, when still free. */
+  initialSlot?: number;
+  /** `layout=` link parameter; the booker can switch. */
+  initialLayout?: BookingLayout;
+  /** The host's first day of the week (0 = Sunday) for the week layout; Monday when unknown. */
+  weekStart?: number;
   /** Embed mode hides event details when asked (EMB-004). */
   hideDetails?: boolean;
   form: BookingFormConfig;
 };
-
-type Slot = { start: number; end: number; seats?: number };
-type Month = { year: number; month: number };
 
 type WeekInfoLocale = Intl.Locale & { getWeekInfo?: () => { firstDay: number }; weekInfo?: { firstDay: number } };
 
@@ -49,13 +73,6 @@ function browserWeekStart(locale: string): number {
   }
 }
 
-function monthDays(m: Month): LocalDate[] {
-  const first = { year: m.year, month: m.month, day: 1 };
-  const days: LocalDate[] = [];
-  for (let d = first; d.month === m.month; d = addDays(d, 1)) days.push(d);
-  return days;
-}
-
 function parseInitialDate(value: string | undefined): LocalDate | null {
   if (!value) return null;
   try {
@@ -64,11 +81,6 @@ function parseInitialDate(value: string | undefined): LocalDate | null {
     return null;
   }
 }
-
-const shiftMonth = (m: Month, delta: number): Month => {
-  const d = new Date(Date.UTC(m.year, m.month - 1 + delta, 1));
-  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
-};
 
 export function BookingWidget(props: BookingWidgetProps) {
   const { form } = props;
@@ -79,17 +91,26 @@ export function BookingWidget(props: BookingWidgetProps) {
   const [tzInput, setTzInput] = useState("UTC");
   const [hour12, setHour12] = useState(false);
   const [duration, setDuration] = useState(props.initialDuration && props.durations.includes(props.initialDuration) ? props.initialDuration : props.durations[0]);
+  const [layout, setLayout] = useState<BookingLayout>(props.initialLayout ?? "month");
   const [month, setMonth] = useState<Month | null>(null);
+  /** First day of the visible week (week layout). */
+  const [week, setWeek] = useState<LocalDate | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  /** Which month/zone/duration the current `slots` belong to; drives aria-busy. */
+  /** Which range/zone/duration the current `slots` belong to; drives aria-busy. */
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  /** A `slot=` start that is no longer free: shown as a notice on its day. */
+  const [slotNotice, setSlotNotice] = useState<number | null>(null);
+  const pendingSlot = useRef<number | null>(null);
   const holdToken = useRef("");
   const requestSeq = useRef(0);
   const idempotencyKey = useRef("");
+  const narrow = useNarrowScreen();
+  const shown = effectiveLayout(layout, narrow);
+  const hostWeekStart = normalizeWeekStart(props.weekStart);
 
   // Browser-only defaults (BKG-003): detected zone, locale clock convention.
   useEffect(() => {
@@ -105,27 +126,35 @@ export function BookingWidget(props: BookingWidgetProps) {
     const now = Date.now();
     setNowMs(now);
     const today = localDateOf(now, tz);
-    const initial = parseInitialDate(props.initialDate);
-    const target = initial && initial.year * 12 + initial.month >= today.year * 12 + today.month ? initial : today;
-    setMonth({ year: target.year, month: target.month });
-    if (initial && target === initial) setSelectedDate(formatDate(initial));
+    // A `slot=` link opens the slot's day in the booker's zone; it wins over `date=`.
+    const initial = props.initialSlot !== undefined ? localDateOf(props.initialSlot, tz) : parseInitialDate(props.initialDate);
+    const opening = initial ?? parseInitialDate(props.initialMonth && `${props.initialMonth}-01`);
+    const target = opening && opening.year * 12 + opening.month >= today.year * 12 + today.month ? opening : today;
+    setMonth(monthOf(target));
+    setWeek(weekFor(target, today, hostWeekStart));
+    if (initial && target === opening) setSelectedDate(formatDate(initial));
+    if (props.initialSlot !== undefined) {
+      if (props.initialSlot > now) pendingSlot.current = props.initialSlot;
+      else setSlotNotice(props.initialSlot);
+    }
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     emitEmbed("ready", {});
     return watchDimensions();
-  }, [props.lockTimeZone, props.initialDate]);
+  }, [props.lockTimeZone, props.initialDate, props.initialMonth, props.initialSlot, hostWeekStart]);
 
   const prefs = useMemo(() => ({ locale, timeZone, hour12 }), [locale, timeZone, hour12]);
   const timeZones = useMemo(() => (ready ? Intl.supportedValuesOf("timeZone") : []), [ready]);
 
-  const requestKey = month ? `${month.year}-${month.month}|${timeZone}|${duration}` : null;
+  const range = useMemo(() => (shown === "week" ? week && weekRange(week) : month && monthRange(month)), [shown, week, month]);
+  const requestKey = range ? `${rangeKey(range)}|${timeZone}|${duration}` : null;
 
   const load = useCallback(async () => {
-    if (!month) return;
-    const key = `${month.year}-${month.month}|${timeZone}|${duration}`;
-    const start = Math.max(Date.now(), wallToUtc({ ...month, day: 1 }, 0, timeZone));
-    const end = wallToUtc({ ...shiftMonth(month, 1), day: 1 }, 0, timeZone);
-    if (end <= start) {
+    if (!range) return;
+    const key = `${rangeKey(range)}|${timeZone}|${duration}`;
+    const seq = ++requestSeq.current;
+    const span = rangeWindow(range, timeZone, Date.now());
+    if (!span) {
       setSlots([]);
       setLoadedKey(key);
       return;
@@ -136,13 +165,12 @@ export function BookingWidget(props: BookingWidgetProps) {
       ...(form.team && { team: form.team }),
       slug: form.slug,
       duration,
-      start,
-      end,
+      start: span.start,
+      end: span.end,
       hold: holdToken.current,
       ...(form.link && { link: form.link }),
       ...(form.reschedule && { reschedule: form.reschedule.uid, token: form.reschedule.token }),
     };
-    const seq = ++requestSeq.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -154,7 +182,7 @@ export function BookingWidget(props: BookingWidgetProps) {
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { slots: Slot[] };
-      if (seq !== requestSeq.current) return; // a newer month/zone/duration was requested meanwhile
+      if (seq !== requestSeq.current) return; // a newer range/zone/duration was requested meanwhile
       setSlots(data.slots);
       setLoadedKey(key);
     } catch {
@@ -162,12 +190,43 @@ export function BookingWidget(props: BookingWidgetProps) {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [month, timeZone, duration, form.username, form.team, form.slug, form.link, form.reschedule]);
+  }, [range, timeZone, duration, form.username, form.team, form.slug, form.link, form.reschedule]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching is the effect's purpose
     void load();
   }, [load]);
+
+  const chooseSlot = useCallback(
+    async (slot: Slot) => {
+      setSelectedSlot(slot);
+      setSelectedDate(formatDate(localDateOf(slot.start, timeZone)));
+      setSlotNotice(null);
+      emitEmbed("slotSelected", { start: slot.start, end: slot.end });
+      try {
+        const held = await holdSlotAction({ username: form.username, ...(form.team && { team: form.team }), slug: form.slug, start: slot.start, duration, holdToken: holdToken.current, link: form.link });
+        if (!held.ok) {
+          setSelectedSlot(null);
+          setLoadError(held.message);
+          void load();
+        }
+      } catch {
+        // Holding is best-effort; booking re-validates the slot anyway.
+      }
+    },
+    [timeZone, duration, form.username, form.team, form.slug, form.link, load],
+  );
+
+  // `slot=` preselection: once the slot's range has loaded, open the form or explain it's gone.
+  useEffect(() => {
+    const pending = pendingSlot.current;
+    if (pending === null || !range || loadedKey !== requestKey) return;
+    pendingSlot.current = null;
+    if (!inRange(localDateOf(pending, timeZone), range)) return; // the booker already moved on
+    const match = findSlotByStart(slots, pending);
+    if (match) void chooseSlot(match);
+    else setSlotNotice(pending);
+  }, [loadedKey, requestKey, range, slots, timeZone, chooseSlot]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Slot[]>();
@@ -178,19 +237,33 @@ export function BookingWidget(props: BookingWidgetProps) {
     return map;
   }, [slots, timeZone]);
 
+  const stacked = ready && shown === "column";
+  const details = (
+    <BookingDetails
+      title={props.title}
+      hostName={props.hostName}
+      description={props.description}
+      durations={props.durations}
+      duration={duration}
+      seated={props.seated}
+      hideDetails={props.hideDetails}
+      stacked={stacked}
+      form={form}
+      prefs={prefs}
+      ready={ready}
+      onDuration={(d) => {
+        setDuration(d);
+        setSelectedSlot(null);
+      }}
+    />
+  );
+
   // Before hydration (and on the server) the event details already render — they are the page's
   // main content (NFR-003 LCP); only the calendar needs the browser's time zone and locale.
-  if (!ready || !month) {
+  if (!ready || !month || !week || !range) {
     return (
       <div className="grid gap-0 md:grid-cols-[260px_1fr]">
-        <aside className={cn("flex flex-col gap-3 border-b border-border p-6 md:border-b-0 md:border-r", props.hideDetails && "sr-only")}>
-          <p className="text-sm text-muted-foreground">{props.hostName}</p>
-          <h1 className="text-xl font-semibold">{props.title}</h1>
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="size-4" aria-hidden /> {formatDuration(duration, locale)}
-          </p>
-          {props.description && <Markdown source={props.description} className="text-sm" />}
-        </aside>
+        {details}
         <div className="p-6" aria-busy="true">
           <span className="sr-only">Loading availability…</span>
           <div className="flex max-w-md flex-col gap-3" aria-hidden>
@@ -206,94 +279,43 @@ export function BookingWidget(props: BookingWidgetProps) {
     );
   }
 
-  const weekStart = browserWeekStart(locale);
-  const days = monthDays(month);
-  const leading = (weekdayOf(days[0]) - weekStart + 7) % 7;
-  const weekdayNames = Array.from({ length: 7 }, (_, i) =>
-    new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(Date.UTC(2026, 0, 4 + ((weekStart + i) % 7))),
-  );
-  const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    Date.UTC(month.year, month.month - 1, 1),
-  );
   const today = localDateOf(nowMs, timeZone);
-  const canGoBack = month.year > today.year || (month.year === today.year && month.month > today.month);
+  const busy = loading || loadedKey !== requestKey;
 
-  const changeMonth = (delta: number) => {
-    setMonth(shiftMonth(month, delta));
-    setSelectedDate(null);
-  };
-
-  const chooseSlot = async (slot: Slot) => {
-    setSelectedSlot(slot);
-    emitEmbed("slotSelected", { start: slot.start, end: slot.end });
+  const changeLayout = (next: BookingLayout) => {
+    if (next === layout) return;
+    const now = localDateOf(Date.now(), timeZone);
+    const selected = selectedDate ? parseDate(selectedDate) : null;
+    if (next === "week") setWeek(weekFor(anchorDay({ selected, month, today: now }), now, hostWeekStart));
+    else if (layout === "week") setMonth(monthOf(selected ?? maxDate(week, now)));
+    setLayout(next);
+    setSlotNotice(null);
     try {
-      const held = await holdSlotAction({ username: form.username, ...(form.team && { team: form.team }), slug: form.slug, start: slot.start, duration, holdToken: holdToken.current, link: form.link });
-      if (!held.ok) {
-        setSelectedSlot(null);
-        setLoadError(held.message);
-        void load();
-      }
+      window.history.replaceState(null, "", withLayoutParam(window.location.href, next));
     } catch {
-      // Holding is best-effort; booking re-validates the slot anyway.
+      // The URL is a convenience (shareable layout); the switch itself already happened.
     }
   };
 
-  return (
-    <div className="grid gap-0 md:grid-cols-[260px_1fr]">
-      <aside className={cn("flex flex-col gap-3 border-b border-border p-6 md:border-b-0 md:border-r", props.hideDetails && "sr-only")}>
-        <p className="text-sm text-muted-foreground">{props.hostName}</p>
-        <h1 className="text-xl font-semibold">{props.title}</h1>
-        {form.reschedule && (
-          <Alert>
-            <AlertDescription>
-              Rescheduling your booking from {formatDateLong(form.reschedule.previousStart, prefs)},{" "}
-              {formatTime(form.reschedule.previousStart, prefs)}.
-            </AlertDescription>
-          </Alert>
-        )}
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="size-4" aria-hidden /> {formatDuration(duration, locale)}
-        </p>
-        {form.recurring && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Repeat className="size-4" aria-hidden /> Can repeat {form.recurring.frequency === "weekly" ? "weekly" : "monthly"}, up to {form.recurring.maxCount} times
-          </p>
-        )}
-        {props.seated && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="size-4" aria-hidden /> Group event
-          </p>
-        )}
-        {form.locations.map((loc) => (
-          <p key={loc.kind} className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin className="size-4" aria-hidden /> {loc.label}
-          </p>
-        ))}
-        {props.description && <Markdown source={props.description} className="text-sm" />}
-        {props.durations.length > 1 && (
-          <fieldset>
-            <legend className="mb-1 text-sm font-medium">Duration</legend>
-            <div className="flex flex-wrap gap-2">
-              {props.durations.map((d) => (
-                <Button
-                  key={d}
-                  type="button"
-                  variant={d === duration ? "default" : "outline"}
-                  aria-pressed={d === duration}
-                  onClick={() => {
-                    setDuration(d);
-                    setSelectedSlot(null);
-                  }}
-                >
-                  {formatDuration(d, locale)}
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-        )}
-      </aside>
+  const preferences = (
+    <BookerPreferences
+      lockTimeZone={props.lockTimeZone}
+      tzInput={tzInput}
+      timeZones={timeZones}
+      hour12={hour12}
+      onTzInput={setTzInput}
+      onTimeZone={(tz) => {
+        setTimeZone(tz);
+        setSelectedDate(null);
+      }}
+      onHour12={setHour12}
+    />
+  );
 
-      <div className="p-6">
+  return (
+    <div className={cn("grid gap-0", !stacked && "md:grid-cols-[260px_1fr]")}>
+      {details}
+      <div className="min-w-0 p-6">
         {selectedSlot ? (
           <BookingForm
             config={form}
@@ -308,141 +330,68 @@ export function BookingWidget(props: BookingWidgetProps) {
             }}
           />
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
-            <section aria-label="Choose a date" aria-busy={loading || loadedKey !== requestKey}>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-medium" aria-live="polite">
-                  {monthLabel}
-                </h2>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Previous month"
-                    disabled={!canGoBack}
-                    onClick={() => changeMonth(-1)}
-                  >
-                    <ChevronLeft className="size-4" aria-hidden />
-                  </Button>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Next month" onClick={() => changeMonth(1)}>
-                    <ChevronRight className="size-4" aria-hidden />
-                  </Button>
-                </div>
+          <>
+            {!narrow && (
+              <div className="mb-4 flex justify-end">
+                <LayoutSwitcher value={layout} onChange={changeLayout} />
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground" aria-hidden>
-                {weekdayNames.map((w) => (
-                  <div key={w}>{w}</div>
-                ))}
-              </div>
-              <div className="mt-1 grid grid-cols-7 gap-1" role="group" aria-label="Days">
-                {Array.from({ length: leading }, (_, i) => (
-                  <div key={`pad-${i}`} />
-                ))}
-                {days.map((d) => {
-                  const key = formatDate(d);
-                  const available = (byDate.get(key)?.length ?? 0) > 0;
-                  const selected = key === selectedDate;
-                  const label = formatDateLong(wallToUtc(d, 12 * 60, "UTC"), { ...prefs, timeZone: "UTC" });
-                  return (
-                    <Button
-                      key={key}
-                      type="button"
-                      variant={selected ? "default" : available ? "secondary" : "ghost"}
-                      disabled={!available}
-                      aria-pressed={selected}
-                      aria-label={`${label}${available ? "" : ", no times available"}`}
-                      onClick={() => {
-                        setSelectedDate(key);
-                        emitEmbed("dateSelected", { date: key });
-                      }}
-                      // No transition: axe must never sample a day mid-fade from the dimmed loading state.
-                      className={cn(
-                        "aspect-square h-auto w-full rounded-md text-sm transition-none",
-                        available && "font-medium hover:bg-primary hover:text-primary-foreground",
-                        !available && "text-muted-foreground",
-                      )}
-                    >
-                      {d.day}
-                    </Button>
-                  );
-                })}
-              </div>
-              {loading && (
-                <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-                  <Spinner /> Loading…
-                </p>
-              )}
-              {loadError && (
-                <Alert variant="destructive" className="mt-3">
-                  <AlertDescription>{loadError}</AlertDescription>
-                </Alert>
-              )}
-              {!loading && !loadError && slots.length === 0 && (
-                <p className="mt-3 text-sm text-muted-foreground">No times available this month. Try the next month.</p>
-              )}
-              <div className="mt-6 flex flex-wrap items-end gap-3">
-                {props.lockTimeZone ? (
-                  <p className="flex items-center gap-1 text-sm">
-                    <Globe className="size-4" aria-hidden /> Times in {props.lockTimeZone.replaceAll("_", " ")}
-                  </p>
-                ) : (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="tz" className="gap-1">
-                    <Globe className="size-4" aria-hidden /> Time zone
-                  </Label>
-                  <Input
-                    id="tz"
-                    list="tz-options"
-                    value={tzInput}
-                    className="w-64"
-                    onChange={(e) => {
-                      setTzInput(e.target.value);
-                      if (isValidTimeZone(e.target.value) && timeZones.includes(e.target.value)) {
-                        setTimeZone(e.target.value);
-                        setSelectedDate(null);
-                      }
-                    }}
-                  />
-                  <datalist id="tz-options">
-                    {timeZones.map((tz) => (
-                      <option key={tz} value={tz} />
-                    ))}
-                  </datalist>
-                </div>
-                )}
-                <div role="group" aria-label="Clock format" className="flex">
-                  <Button type="button" variant={hour12 ? "default" : "outline"} aria-pressed={hour12} className="rounded-r-none" onClick={() => setHour12(true)}>
-                    12h
-                  </Button>
-                  <Button type="button" variant={!hour12 ? "default" : "outline"} aria-pressed={!hour12} className="rounded-l-none" onClick={() => setHour12(false)}>
-                    24h
-                  </Button>
-                </div>
-              </div>
-            </section>
-            <section aria-label="Choose a time">
-              {selectedDate ? (
-                <>
-                  <h2 className="mb-3 text-sm font-medium">
-                    {formatDateLong(byDate.get(selectedDate)?.[0]?.start ?? nowMs, prefs)}
-                  </h2>
-                  <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto">
-                    {(byDate.get(selectedDate) ?? []).map((s) => (
-                      <li key={s.start}>
-                        <Button type="button" variant="outline" className="w-full" onClick={() => void chooseSlot(s)}>
-                          {formatTime(s.start, prefs)}
-                          {props.seated && s.seats !== undefined && <span className="ml-2 text-xs text-muted-foreground">{s.seats} {s.seats === 1 ? "seat" : "seats"} left</span>}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Select a date to see available times.</p>
-              )}
-            </section>
-          </div>
+            )}
+            {slotNotice !== null && (
+              <Alert className="mb-4">
+                <AlertDescription>That time is no longer available — pick another time on {formatWeekdayDate(slotNotice, prefs)}.</AlertDescription>
+              </Alert>
+            )}
+            {shown === "week" ? (
+              <WeekCalendar
+                week={week}
+                firstWeek={startOfWeek(today, hostWeekStart)}
+                prefs={prefs}
+                byDate={byDate}
+                selectedDate={selectedDate}
+                busy={busy}
+                loading={loading}
+                loadError={loadError}
+                seated={props.seated}
+                preferences={preferences}
+                onChangeWeek={(delta) => {
+                  setWeek(addDays(week, 7 * delta));
+                  setSlotNotice(null);
+                }}
+                onChooseSlot={(slot) => {
+                  emitEmbed("dateSelected", { date: formatDate(localDateOf(slot.start, timeZone)) });
+                  void chooseSlot(slot);
+                }}
+              />
+            ) : (
+              <MonthCalendar
+                month={month}
+                today={today}
+                weekStart={browserWeekStart(locale)}
+                prefs={prefs}
+                byDate={byDate}
+                selectedDate={selectedDate}
+                busy={busy}
+                loading={loading}
+                loadError={loadError}
+                empty={slots.length === 0}
+                seated={props.seated}
+                stacked={shown === "column"}
+                nowMs={nowMs}
+                preferences={preferences}
+                onChangeMonth={(delta) => {
+                  setMonth(shiftMonth(month, delta));
+                  setSelectedDate(null);
+                  setSlotNotice(null);
+                }}
+                onSelectDate={(key) => {
+                  setSelectedDate(key);
+                  setSlotNotice(null);
+                  emitEmbed("dateSelected", { date: key });
+                }}
+                onChooseSlot={(slot) => void chooseSlot(slot)}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

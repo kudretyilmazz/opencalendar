@@ -20,6 +20,13 @@ const ABORTED_FETCH =
  */
 const DEV_ONLY = /Encountered a script tag while rendering React component/;
 
+/**
+ * Playwright's trace recorder injects its snapshot script into every frame; the email embed's
+ * preview is a script-less `sandbox=""` srcdoc frame, so Chrome logs the blocked injection. The
+ * email HTML itself never contains scripts (asserted in email-html.test.ts and embed-builder.spec.ts).
+ */
+const TRACE_IN_SANDBOX = /^Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed/;
+
 /** Fails the current test on any browser error (hydration mismatches, exceptions, CSP). */
 export function guardBrowserErrors() {
   let errors: string[] = [];
@@ -34,7 +41,8 @@ export function guardBrowserErrors() {
         message.type() === "error" &&
         !/Failed to load resource/.test(text) &&
         !ABORTED_FETCH.test(text) &&
-        !DEV_ONLY.test(text)
+        !DEV_ONLY.test(text) &&
+        !TRACE_IN_SANDBOX.test(text)
       ) {
         errors.push(`console: ${text}`);
       }
@@ -46,8 +54,17 @@ export function guardBrowserErrors() {
 }
 
 /** Zero serious/critical axe violations (NFR-008). */
+/**
+ * Frames axe must skip: it runs inside every frame, and a script-less `sandbox=""` frame never
+ * answers, so the run would hang. The email embed's preview is one; its content is an email, not
+ * a page, and the panel around it is still checked.
+ */
+const AXE_EXCLUDE = ['iframe[title="Email preview"]'];
+
 export async function expectAccessible(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  const builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]);
+  for (const selector of AXE_EXCLUDE) builder.exclude(selector);
+  const results = await builder.analyze();
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   // For contrast failures, include the measured colors so a CI failure explains itself.
   const detail = (n: (typeof blocking)[number]["nodes"][number]) => {

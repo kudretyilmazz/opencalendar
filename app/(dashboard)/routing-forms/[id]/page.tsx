@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { CopyButton } from "@/features/dashboard/components/copy-button";
+import { EmbedButton } from "@/features/embed/components/embed-dialog";
+import { formTarget } from "@/features/embed/targets";
 import { DeleteFormButton } from "@/features/routing-forms/components/delete-form-button";
 import { RoutingFormBuilder } from "@/features/routing-forms/components/routing-form-builder";
 import { saveRoutingFormAction } from "@/features/routing-forms/server/actions";
@@ -28,8 +30,9 @@ export default async function EditRoutingFormPage({ params }: PageProps<"/routin
   if (!form) notFound();
   const eventTypes = await listEventTypeOptions(db, { userId: form.ownerUserId, teamId: form.teamId });
   const key = form.teamId ?? "personal";
-  const publicUrl = `${getEnv().APP_URL}/forms/${form.id}`;
-  const embedSnippet = `<iframe src="${publicUrl}?embed=1" title="${form.name.replace(/["<>&]/g, "")}" width="100%" height="480" style="border:0"></iframe>`;
+  const appUrl = getEnv().APP_URL;
+  const publicUrl = `${appUrl}/forms/${form.id}`;
+  const embed = formTarget({ id: form.id, name: form.name });
   const firstKey = form.fields[0]?.key ?? "field";
 
   return (
@@ -64,12 +67,17 @@ export default async function EditRoutingFormPage({ params }: PageProps<"/routin
               {publicUrl}
             </a>
           </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-[13px] font-medium">Embed</p>
-            <pre tabIndex={0} aria-label="Embed code" className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
-              {embedSnippet}
-            </pre>
-          </div>
+          {embed && (
+            <div className="flex flex-col items-start gap-1.5">
+              <p className="text-[13px] font-medium">Embed</p>
+              <p className="text-[13px] text-muted-foreground">
+                Show this form on your website inline, as a floating button or in a popup.
+              </p>
+              <EmbedButton target={embed} appUrl={appUrl} className="h-10 rounded-md bg-card px-3.5 text-sm">
+                Get embed code
+              </EmbedButton>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <p className="text-[13px] font-medium">Headless routing</p>
             <p className="text-[13px] text-muted-foreground">Send answers as URL parameters and the visitor is redirected immediately:</p>

@@ -2,6 +2,7 @@
  * Pure helpers behind the event types list: wording for each row, the status filter and the
  * search. Nothing here reads the clock or the database, so the client can filter freely.
  */
+import type { EmbedTarget } from "@/features/embed/target";
 import { LOCATION_LABELS, type LocationKind } from "./schemas";
 
 export type EventTypeStatus = "active" | "hidden" | "off";
@@ -109,4 +110,6 @@ export type EventTypeListRow = {
   week: { value: string; label: string };
   /** The public booking link, when the host has a username. */
   url: string | null;
+  /** What the "Embed" action embeds (built on the server); null without a username. */
+  embed: EmbedTarget | null;
 };

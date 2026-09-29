@@ -135,6 +135,9 @@ Related: [Vision](./vision.md) · [User flows](./user-flows.md) · [Glossary](./
 | EMB-004 | Embed config supports prefill (name, email, answers), theme (light/dark/auto), brand color, hiding event details and layout selection. | Should | M3 |
 | EMB-005 | The inline embed resizes its height to fit content automatically. The instance can restrict embedding through a `frame-ancestors` allow-list set in runtime config. | Should | M3 |
 | EMB-006 | An npm React wrapper component (`@opencalendar/embed-react`) with typed props and event callbacks. | Could | M5 |
+| EMB-007 | An embed builder in the dashboard (event types, profile, teams, team event types, routing forms) generates inline, floating-button, popup, iframe and link code from options (theme, brand color, layout, hide details, prefill, button text/color/position) with a live preview of the real loader. | Should | M5 |
+| EMB-008 | An email embed: the host picks free times of an event type and copies email-safe HTML (and plain text) in which each time links to the booking page with that time preselected. | Should | M5 |
+| EMB-009 | Booking pages offer month, week and column layouts (URL `layout`, embed config, booker switcher) and accept `slot` to preselect an exact start. | Should | M5 |
 
 ## TEAM: Teams
 

@@ -9,6 +9,9 @@
  */
 
 export const NO_FRAMING: readonly string[] = ["'none'"];
+export const SAME_ORIGIN_FRAMING: readonly string[] = ["'self'"];
+/** The embed builder's live preview (app/embed/preview): framed only by the dashboard itself. */
+export const EMBED_PREVIEW_PATH = "/embed/preview";
 export const DEFAULT_EMBED_ANCESTORS: readonly string[] = ["*"];
 
 export function buildCsp(nonce: string, options: { dev: boolean; frameAncestors?: readonly string[] }): string {
@@ -89,12 +92,18 @@ export function isPublicBookingPath(pathname: string): boolean {
 
 /**
  * frame-ancestors for one request: the embed allow-list for public booking pages with
- * `embed=1`, `'none'` for everything else. An invalid allow-list fails closed.
+ * `embed=1`, `'self'` for the embed builder's preview, `'none'` for everything else. An invalid
+ * allow-list fails closed.
  */
 export function frameAncestorsFor(pathname: string, searchParams: URLSearchParams, allowedOrigins: string | undefined): readonly string[] {
+  if (pathname === EMBED_PREVIEW_PATH) return SAME_ORIGIN_FRAMING;
   if (searchParams.get("embed") !== "1" || !isPublicBookingPath(pathname)) return NO_FRAMING;
   try {
-    return parseEmbedAllowedOrigins(allowedOrigins);
+    const origins = parseEmbedAllowedOrigins(allowedOrigins);
+    // An explicit allow-list still lets the instance frame its own pages (the dashboard's embed
+    // preview); same-origin framing grants nothing the origin doesn't already have. "*" already
+    // covers it and "'none'" (embedding switched off) stays off.
+    return origins.includes("*") || origins.includes("'none'") ? origins : [...origins, "'self'"];
   } catch {
     // Startup env validation (lib/env.ts) reports the bad value; never widen framing here.
     return NO_FRAMING;

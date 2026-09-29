@@ -1,7 +1,9 @@
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { Card } from "@/components/ui/card";
-import { getDb } from "@/db/client";
+import { type Database, getDb } from "@/db/client";
+import { user } from "@/db/schema";
 import { BookingWidget } from "@/features/bookings/components/booking-widget";
 import { publicLocationLabel } from "@/features/bookings/location";
 import { prefillAnswers, utmFrom } from "@/features/bookings/responses";
@@ -11,6 +13,7 @@ import { isUsablePrivateLink } from "@/features/event-types/server/private-links
 import { durationsOf } from "@/features/event-types/server/service";
 import { cn } from "@/lib/cn";
 import { requestTime } from "@/lib/clock";
+import { parseBookingLinkParams } from "@/lib/embed/booking-link";
 import { parseEmbedOptions } from "@/lib/embed/protocol";
 import { getEnv } from "@/lib/env";
 
@@ -18,12 +21,19 @@ type Query = Record<string, string | string[] | undefined>;
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
+/** The host's first day of the week (0 = Sunday) for the week layout. */
+async function hostWeekStart(db: Database, userId: string): Promise<number | undefined> {
+  const [row] = await db.select({ weekStart: user.weekStart }).from(user).where(eq(user.id, userId));
+  return row?.weekStart;
+}
+
 /**
  * Public booking page body (BKG-002/003) for any target: a personal event type, a team event type
  * (TEAM-001) or a dynamic group (TEAM-009). `?reschedule=<uid>&token=<t>` books a new time
  * (BKG-009), `?link=<token>` is a single-use link (EVT-015), `?routing=<id>` links a routing-form
- * response (RTE-004), other parameters prefill the form (BKG-014), and `?embed=1` renders the
- * compact embed variant (EMB-004).
+ * response (RTE-004), other parameters prefill the form (BKG-014), `?embed=1` renders the
+ * compact embed variant (EMB-004), and the booking-link parameters `date`, `duration`, `slot` and
+ * `layout` (features/embed/target.ts) pick the day, duration, time and calendar layout.
  */
 export async function BookingPageView({ target, query }: { target: BookingTarget; query: Query }) {
   const db = getDb();
@@ -45,8 +55,8 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
   if (eventType.linkOnly && !rescheduleProps && !(await isUsablePrivateLink(db, eventType.id, link, requestTime()))) notFound();
 
   const embed = parseEmbedOptions(query);
-  const duration = Number(one(query.duration));
-  const date = one(query.date);
+  const linkParams = parseBookingLinkParams(query);
+  const weekStart = await hostWeekStart(db, target.host.id);
   const routing = one(query.routing);
   const theme = embed?.theme === "dark" ? "dark" : embed?.theme === "light" ? "light" : undefined;
   const brandColor = embed?.brand ?? target.team?.brandColor ?? undefined;
@@ -62,8 +72,12 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
           durations={durationsOf(eventType)}
           seated={eventType.seatsPerSlot !== null}
           lockTimeZone={eventType.lockTimeZone}
-          initialDuration={Number.isInteger(duration) ? duration : undefined}
-          initialDate={date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined}
+          initialDuration={linkParams.duration}
+          initialDate={linkParams.date}
+          initialMonth={linkParams.month}
+          initialSlot={linkParams.slot}
+          initialLayout={linkParams.layout}
+          weekStart={weekStart}
           hideDetails={embed?.hideDetails}
           form={{
             username: target.kind === "team" ? "" : target.basePath.slice(1),

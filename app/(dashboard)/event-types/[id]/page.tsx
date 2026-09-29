@@ -8,12 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LOCKABLE_LABELS, type LockableField } from "@/features/teams/schemas";
 import { managedParentOf } from "@/features/teams/server/event-types";
 import { getDb } from "@/db/client";
+import { EmbedButton } from "@/features/embed/components/embed-dialog";
+import { eventTypeTarget } from "@/features/embed/targets";
 import { EventTypeFormView } from "@/features/event-types/components/event-type-form";
 import { saveEventTypeAction } from "@/features/event-types/server/actions";
 import { eventTypeToForm } from "@/features/event-types/form-input";
 import { PrivateLinksPanel } from "@/features/event-types/components/private-links-panel";
 import { listPrivateLinks } from "@/features/event-types/server/private-links";
-import { getEventType } from "@/features/event-types/server/service";
+import { durationsOf, getEventType } from "@/features/event-types/server/service";
 import { WorkflowsPanel } from "@/features/workflows/components/workflows-panel";
 import { listWorkflows } from "@/features/workflows/server/service";
 import { requestTime } from "@/lib/clock";
@@ -52,7 +54,9 @@ export default async function EditEventTypePage({ params }: PageProps<"/event-ty
     et.parentId ? managedParentOf(db, et.parentId) : null,
   ]);
   const now = requestTime();
-  const profileUrl = `${getEnv().APP_URL}/${user.username ?? "username"}`;
+  const appUrl = getEnv().APP_URL;
+  const profileUrl = `${appUrl}/${user.username ?? "username"}`;
+  const embed = eventTypeTarget(user.username, { slug: et.slug, title: et.title, durations: durationsOf(et) });
 
   return (
     <div className={PAGE_CLASS}>
@@ -65,9 +69,12 @@ export default async function EditEventTypePage({ params }: PageProps<"/event-ty
           description={user.username ? `${profileUrl.replace(/^https?:\/\//, "")}/${et.slug}` : undefined}
           actions={
             user.username && (
-              <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
-                <a href={`${profileUrl}/${et.slug}`}>Open booking page ↗</a>
-              </Button>
+              <>
+                {embed && <EmbedButton target={embed} appUrl={appUrl} className={`${HEADER_BUTTON_CLASS} bg-card`} />}
+                <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
+                  <a href={`${profileUrl}/${et.slug}`}>Open booking page ↗</a>
+                </Button>
+              </>
             )
           }
         />

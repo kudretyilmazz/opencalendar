@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Copy as DuplicateIcon, Ellipsis, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Code2, Copy as DuplicateIcon, Ellipsis, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { CopyButton } from "@/features/dashboard/components/copy-button";
+import { EmbedDialog } from "@/features/embed/components/embed-dialog";
+import type { EmbedTarget } from "@/features/embed/target";
 import {
   deleteEventTypeAction,
   duplicateEventTypeAction,
@@ -53,21 +55,28 @@ export function EventTypeSwitch({ id, title, enabled }: { id: string; title: str
   );
 }
 
-/** Copy link and the "…" menu: edit, duplicate, reorder, delete (with confirmation). */
+/** Copy link and the "…" menu: edit, embed, duplicate, reorder, delete (with confirmation). */
 export function EventTypeRowMenu({
   id,
   title,
   url,
+  embed,
+  appUrl,
   first,
   last,
 }: {
   id: string;
   title: string;
   url: string | null;
+  /** Null hides "Embed" (no username yet). */
+  embed: EmbedTarget | null;
+  appUrl: string;
   first: boolean;
   last: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [embedding, setEmbedding] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [pending, startTransition] = useTransition();
   const run = (action: () => Promise<void>) => startTransition(action);
 
@@ -87,6 +96,7 @@ export function EventTypeRowMenu({
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={menuButton}
             type="button"
             variant="ghost"
             size="icon"
@@ -104,6 +114,12 @@ export function EventTypeRowMenu({
               Edit
             </Link>
           </DropdownMenuItem>
+          {embed && (
+            <DropdownMenuItem onSelect={() => setEmbedding(true)}>
+              <Code2 aria-hidden />
+              Embed
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => run(() => duplicateEventTypeAction(id))}>
             <DuplicateIcon aria-hidden />
             Duplicate
@@ -123,6 +139,15 @@ export function EventTypeRowMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {embed && (
+        <EmbedDialog
+          target={embed}
+          appUrl={appUrl}
+          open={embedding}
+          onOpenChange={setEmbedding}
+          returnFocusRef={menuButton}
+        />
+      )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>

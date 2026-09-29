@@ -79,7 +79,7 @@ function FilterBar({
   );
 }
 
-function Row({ row, first, last }: { row: EventTypeListRow; first: boolean; last: boolean }) {
+function Row({ row, first, last, appUrl }: { row: EventTypeListRow; first: boolean; last: boolean; appUrl: string }) {
   const off = row.status === "off";
   return (
     <li className="flex flex-col gap-2 px-4 py-4 not-first:border-t not-first:border-border md:grid md:grid-cols-[minmax(0,1fr)_110px_36px_76px] md:items-center md:gap-4 md:px-5">
@@ -123,7 +123,15 @@ function Row({ row, first, last }: { row: EventTypeListRow; first: boolean; last
         </div>
         <div className="flex items-center gap-2 md:contents">
           <EventTypeSwitch id={row.id} title={row.title} enabled={!off} />
-          <EventTypeRowMenu id={row.id} title={row.title} url={row.url} first={first} last={last} />
+          <EventTypeRowMenu
+            id={row.id}
+            title={row.title}
+            url={row.url}
+            embed={row.embed}
+            appUrl={appUrl}
+            first={first}
+            last={last}
+          />
         </div>
       </div>
     </li>
@@ -131,7 +139,7 @@ function Row({ row, first, last }: { row: EventTypeListRow; first: boolean; last
 }
 
 /** The host's event types with a status filter and search (both client-side over the loaded list). */
-export function EventTypeList({ rows }: { rows: EventTypeListRow[] }) {
+export function EventTypeList({ rows, appUrl }: { rows: EventTypeListRow[]; appUrl: string }) {
   const [filter, setFilter] = useState<EventTypeFilter>("all");
   const [query, setQuery] = useState("");
   const visible = filterRows(rows, filter, query);
@@ -147,7 +155,7 @@ export function EventTypeList({ rows }: { rows: EventTypeListRow[] }) {
           <ul>
             {visible.map((row) => {
               const i = position.get(row.id) ?? 0;
-              return <Row key={row.id} row={row} first={i === 0} last={i === rows.length - 1} />;
+              return <Row key={row.id} row={row} first={i === 0} last={i === rows.length - 1} appUrl={appUrl} />;
             })}
           </ul>
         )}
