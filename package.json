@@ -16,6 +16,7 @@
     "test:integration": "vitest run --project integration",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "screenshots": "playwright test -c scripts/screenshots/playwright.config.ts",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file=.env cli.ts migrate",
