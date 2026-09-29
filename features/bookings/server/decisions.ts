@@ -3,6 +3,7 @@ import type { Database, Tx } from "@/db/client";
 import { attendee, booking, eventType } from "@/db/schema";
 import { hashToken, tokenMatches } from "@/lib/ids";
 import { ACTIVE, type AttendeeRow, BookingFailure, type BookingRow, deactivate, isHostOf, MIN } from "./core";
+import { refreshDisplay } from "./host-data";
 
 /**
  * Host decisions and attendee self-service beyond plain cancel (M3): accept/reject pending
@@ -19,7 +20,7 @@ async function decide(
   apply: (row: BookingRow) => Partial<BookingRow>,
   release: boolean,
 ): Promise<BookingRow> {
-  return db.transaction(async (tx) => {
+  return refreshDisplay(db.transaction(async (tx) => {
     const [probe] = await tx
       .select({ seriesId: booking.recurringSeriesId })
       .from(booking)
@@ -42,7 +43,7 @@ async function decide(
     // The hook still gets the sealed token (the committed row no longer has it).
     await input.onCommit?.(tx, { ...first, pendingTokenSealed: row.pendingTokenSealed });
     return first;
-  });
+  }));
 }
 
 /** BKG-012: a pending booking becomes accepted (it already blocks the host's time). */
@@ -123,7 +124,7 @@ export async function cancelSeat(
   db: Database,
   input: { uid: string; token: string; now: number; onCommit?: (tx: Tx, row: BookingRow, seat: AttendeeRow, bookingCancelled: boolean) => Promise<void> },
 ): Promise<{ booking: BookingRow; seatId: string; bookingCancelled: boolean }> {
-  return db.transaction(async (tx) => {
+  return refreshDisplay(db.transaction(async (tx) => {
     const [row] = await tx.select().from(booking).where(eq(booking.uid, input.uid)).for("update");
     if (!row) throw new BookingFailure("NOT_FOUND");
     const [seat] = await tx
@@ -152,7 +153,7 @@ export async function cancelSeat(
     }
     await input.onCommit?.(tx, next, seat, last);
     return { booking: next, seatId: seat.id, bookingCancelled: last };
-  });
+  }));
 }
 
 /** Locks every occurrence of a series, in start order (the one lock order used everywhere). */

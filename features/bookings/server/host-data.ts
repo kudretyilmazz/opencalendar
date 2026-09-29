@@ -126,6 +126,21 @@ export async function loadHostInput(db: DbOrTx, input: HostDataInput): Promise<H
 const DISPLAY_TTL_MS = 1_000;
 const displayCache = new TtlCache<HostData>(DISPLAY_TTL_MS, 5_000);
 
+/**
+ * Called after every booking change in this process (book, hold, cancel, decide, seats), so the
+ * page a visitor loads next shows it at once; other replicas catch up within DISPLAY_TTL_MS.
+ */
+export function invalidateHostDisplayCache(): void {
+  displayCache.clear();
+}
+
+/** Resolves `write` and then refreshes the display cache (use for every booking mutation). */
+export async function refreshDisplay<T>(write: Promise<T>): Promise<T> {
+  const result = await write;
+  invalidateHostDisplayCache();
+  return result;
+}
+
 export async function loadHostInputForDisplay(db: DbOrTx, input: HostDataInput): Promise<HostInput> {
   const key = [input.hostId, input.window.start, input.window.end, input.eventType?.id ?? "", JSON.stringify(input.eventType?.limits ?? {}), input.eventType?.seats ?? ""].join("|");
   const { ownHoldHash, ...rest } = input;

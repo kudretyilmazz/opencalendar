@@ -64,6 +64,10 @@ test("a booking can be made with the keyboard only; embed mode is accessible (NF
   // The compact embed variant passes axe as well.
   await guest.goto(`/${username}/intro-call?embed=1`);
   await expect(guest.locator('section[aria-label="Choose a date"]')).toHaveAttribute("aria-busy", "false", { timeout: 15_000 });
+  // Bookable days are fully drawn (not mid-way from the dimmed loading state) before axe checks contrast.
+  await expect
+    .poll(() => guest.getByRole("group", { name: "Days" }).locator("button:not([disabled])").evaluateAll((els) => els.every((e) => getComputedStyle(e).opacity === "1")))
+    .toBe(true);
   await expectAccessible(guest);
   await context.close();
 });

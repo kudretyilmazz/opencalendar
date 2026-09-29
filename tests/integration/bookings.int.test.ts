@@ -192,6 +192,15 @@ describe("createBooking (BKG-005, NFR-004)", () => {
     expect(await offered("holder")).toBe(true); // same cached data, own hold excluded
   });
 
+  it("a booking shows on the cached public slot list immediately (same process)", async () => {
+    const { host, eventType, input } = await base();
+    const window = { start: MONDAY_10 - 60 * MIN, end: MONDAY_10 + 120 * MIN };
+    const offered = async () => (await getAvailableSlots(db, { host, eventType, durationMin: 30, window, now: NOW, displayCache: true })).some((s) => s.start === MONDAY_10);
+    expect(await offered()).toBe(true);
+    await createBooking(db, input);
+    expect(await offered()).toBe(false);
+  });
+
   it("rejects holds for slots the engine wouldn't offer and caps live holds per host", async () => {
     const { host, eventType } = await base();
     const hold = (start: number, token: string, durationMin = 30) =>

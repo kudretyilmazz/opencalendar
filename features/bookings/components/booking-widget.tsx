@@ -342,7 +342,7 @@ export function BookingWidget(props: BookingWidgetProps) {
                         emitEmbed("dateSelected", { date: key });
                       }}
                       className={cn(
-                        "aspect-square rounded-md text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "aspect-square rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         available ? "bg-accent font-medium hover:bg-primary hover:text-primary-foreground" : "text-muted opacity-50",
                         selected && "bg-primary text-primary-foreground",
                       )}

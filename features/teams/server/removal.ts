@@ -3,6 +3,7 @@ import type { Database, Tx } from "@/db/client";
 import { booking, bookingHost, eventType, eventTypeHost, membership, user } from "@/db/schema";
 import { ACTIVE, type BookingRow, deactivate, lockHosts, MIN } from "@/features/bookings/server/core";
 import { loadHostInput } from "@/features/bookings/server/host-data";
+import { refreshDisplay } from "@/features/bookings/server/host-data";
 import { toEngineEvent } from "@/features/event-types/server/service";
 import { scheduleForEventType, toScheduleInput } from "@/features/schedules/server/service";
 import { isSlotAvailable, selectRoundRobinHost } from "@/lib/availability";
@@ -131,7 +132,7 @@ export async function removeMember(
   hooks: RemovalHooks,
 ): Promise<RemovalResult> {
   const leavingSelf = input.actorId === input.userId;
-  return db.transaction(async (tx) => {
+  return refreshDisplay(db.transaction(async (tx) => {
     // Roles are read under the lock, so a concurrent demotion can't slip in between.
     const members = await lockMembers(tx, input.teamId);
     const actorRole = members.find((m) => m.userId === input.actorId)?.role;
@@ -167,5 +168,5 @@ export async function removeMember(
     await detachCopies(tx, and(eq(eventType.ownerUserId, input.userId), inArray(eventType.parentId, teamTypes)));
     await tx.delete(membership).where(and(eq(membership.teamId, input.teamId), eq(membership.userId, input.userId)));
     return result;
-  });
+  }));
 }

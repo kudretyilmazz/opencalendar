@@ -8,7 +8,7 @@ import { durationsOf, type EventTypeView, type PublicHost, toEngineEvent } from 
 import { type ScheduleView, scheduleForEventType, toScheduleInput } from "@/features/schedules/server/service";
 import { ACTIVE, assertPlausibleStart, BookingFailure, type AttendeeRow, type BookingRow, deactivate, type ExternalBusyFn, HOLD_TTL_MS, isHostOf, MIN, validationWindow, withExternal } from "./core";
 import { attendeeMayCancel, findSeat, lockSeries, policyFor } from "./decisions";
-import { loadHostInput, loadHostInputForDisplay } from "./host-data";
+import { invalidateHostDisplayCache, loadHostInput, loadHostInputForDisplay, refreshDisplay } from "./host-data";
 
 export {
   ACTIVE,
@@ -179,6 +179,7 @@ export async function holdSlot(
     .insert(slotReservation)
     .values({ id: newId(), sessionTokenHash, ...values })
     .onConflictDoUpdate({ target: slotReservation.sessionTokenHash, set: values });
+  invalidateHostDisplayCache();
 }
 
 /** Removes holds that have expired (maintenance job). */
@@ -283,7 +284,7 @@ async function cancel(
   where: ReturnType<typeof and>,
   input: { by: "attendee" | "host" | "system"; reason?: string; now: number; allowPast?: boolean; onCommit?: CancelHook },
 ): Promise<BookingDetails> {
-  const updated = await db.transaction(async (tx) => {
+  const updated = await refreshDisplay(db.transaction(async (tx) => {
     const [row] = await tx.select().from(booking).where(where).for("update");
     if (!row) throw new BookingFailure("NOT_FOUND");
     if (!(ACTIVE as readonly string[]).includes(row.status)) throw new BookingFailure("ALREADY_CANCELLED");
@@ -308,7 +309,7 @@ async function cancel(
       .returning();
     await input.onCommit?.(tx, next);
     return next;
-  });
+  }));
   return details(db, updated);
 }
 
@@ -333,7 +334,7 @@ export async function cancelSeriesByAttendee(
   const [row] = await db.select().from(booking).where(eq(booking.uid, input.uid));
   if (!row || !row.recurringSeriesId || !tokenMatches(input.token, row.manageTokenHash)) throw new BookingFailure("NOT_FOUND");
   const seriesId = row.recurringSeriesId;
-  return db.transaction(async (tx) => {
+  return refreshDisplay(db.transaction(async (tx) => {
     const rows = (await lockSeries(tx, seriesId)).filter(
       (r) => (ACTIVE as readonly string[]).includes(r.status) && r.startAt.getTime() > input.now,
     );
@@ -352,7 +353,7 @@ export async function cancelSeriesByAttendee(
       cancelled.push(next);
     }
     return cancelled;
-  });
+  }));
 }
 
 /** Host cancel from the dashboard (BKG-010); any host of the booking can cancel. */

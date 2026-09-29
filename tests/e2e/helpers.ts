@@ -43,7 +43,12 @@ export function guardBrowserErrors() {
 export async function expectAccessible(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
-  expect(blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  // For contrast failures, include the measured colors so a CI failure explains itself.
+  const detail = (n: (typeof blocking)[number]["nodes"][number]) => {
+    const data = n.any.find((c) => c.id === "color-contrast")?.data as { fgColor?: string; bgColor?: string; contrastRatio?: number } | undefined;
+    return data?.fgColor ? `${n.target.join(" ")} (${data.fgColor} on ${data.bgColor}, ${data.contrastRatio})` : n.target.join(" ");
+  };
+  expect(blocking.map((v) => `${v.id}: ${v.nodes.map(detail).join(", ")}`)).toEqual([]);
 }
 
 /** Signs up, verifies by email, and lands on the dashboard. */

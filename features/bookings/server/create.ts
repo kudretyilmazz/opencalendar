@@ -22,7 +22,7 @@ import {
   pgCode,
   validationWindow,
 } from "./core";
-import { loadHostInput } from "./host-data";
+import { loadHostInput, refreshDisplay } from "./host-data";
 
 export type BookerInput = { name: string; email: string; timeZone: string; locale: string; phone?: string };
 
@@ -314,7 +314,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const token = randomToken();
 
   try {
-    return await db.transaction(async (tx) => {
+    return await refreshDisplay(db.transaction(async (tx) => {
       await lockHosts(tx, loaded.map((h) => h.plan.host.id));
       const linkId = await consumeLink(tx, input);
       const previous = input.reschedule ? await loadReschedulable(tx, input) : undefined;
@@ -341,7 +341,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
       if (input.holdToken) await tx.delete(slotReservation).where(eq(slotReservation.sessionTokenHash, hashToken(input.holdToken)));
       await input.onCommit?.(tx, result);
       return result;
-    });
+    }));
   } catch (error) {
     if (pgCode(error) === "23P01") throw new BookingFailure("SLOT_UNAVAILABLE", "booking_conflict");
     if (pgCode(error) === "23505" && input.idempotencyKey) throw new BookingFailure("DUPLICATE");
