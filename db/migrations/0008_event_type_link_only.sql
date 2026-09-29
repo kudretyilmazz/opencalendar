@@ -1,0 +1,1 @@
+ALTER TABLE "event_type" ADD COLUMN "link_only" boolean DEFAULT false NOT NULL;

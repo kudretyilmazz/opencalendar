@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+.light {
+  --background: #fafafa;
+  --surface: #ffffff;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #111827;
+  --primary-foreground: #ffffff;
+  --accent: #f1f5f9;
+  --danger: #991b1b;
+  --success: #166534;
+  --ring: #6366f1;
+}
+
+.dark {
+  --background: #0b0f17;
+  --surface: #111827;
+  --foreground: #e5e7eb;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --primary: #f8fafc;
+  --primary-foreground: #0f172a;
+  --accent: #1e293b;
+  --danger: #f87171;
+  --success: #4ade80;
+  --ring: #818cf8;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* NFR-008: honor "reduce motion" — no transitions or animations (e.g. hover fades, spinners). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

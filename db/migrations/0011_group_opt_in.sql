@@ -1,0 +1,1 @@
+ALTER TABLE "profile_settings" ADD COLUMN "allow_dynamic_group" boolean DEFAULT false NOT NULL;

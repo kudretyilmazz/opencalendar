@@ -1,0 +1,38 @@
+# Local development backing services. Run: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opencal
+      POSTGRES_PASSWORD: opencal
+      POSTGRES_DB: opencal
+    ports:
+      - "5433:5432" # 5433 on the host to avoid clashing with a local Postgres
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencal"]
+      interval: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI + API
+
+  # Local CalDAV server (user "host", password "hostpass") for CalDAV development and E2E tests.
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    ports:
+      - "5232:5232"
+    volumes:
+      - ./dev/radicale/config:/config/config:ro
+      - ./dev/radicale/users:/config/users:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5232/.web/ >/dev/null || exit 1"]
+      interval: 3s
+      retries: 20
+
+volumes:
+  pgdata-dev:

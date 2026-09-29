@@ -1,0 +1,72 @@
+# Changelog
+
+All notable changes to OpenCalendar are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/). Upgrades within a major version are "pull the new
+image and restart"; migrations run automatically (see
+[self-hosting](docs/03-architecture/self-hosting.md#upgrades)).
+
+## [1.0.0] - 2026-09-29
+
+First stable release: self-hostable scheduling with team features in the open core (AGPL-3.0).
+
+### Scheduling
+- Availability schedules with weekly hours, date overrides and several schedules per person; a
+  pure, deterministic availability engine (time zones and DST, buffers, minimum notice, booking
+  window, slot interval, limits, seats) and a troubleshooter that explains why a time is not
+  offered.
+- Event types: several durations, locations (in person, phone, link, Jitsi, Google Meet,
+  Microsoft Teams, Zoom), booking questions with URL prefill and UTM capture, requires
+  confirmation, seats, weekly/monthly recurring bookings, frequency and duration limits, hidden
+  event types and single-use private links, redirect after booking, cancellation and reschedule
+  policies, locked time zone, custom event names.
+- Public booking pages with time-zone detection, slot holds while the form is filled in,
+  double-booking protection in the database, reschedule and cancel links, accept/reject for
+  pending requests, no-show marking.
+
+### Calendars and video
+- Google Calendar, Microsoft 365, CalDAV (iCloud, Fastmail, Nextcloud, …) and ICS feeds as
+  conflict calendars, a destination calendar per person or event type, Google Meet, Teams and
+  Zoom meeting links. Credentials are encrypted (AES-256-GCM, key rotation supported).
+
+### Teams
+- Teams with owner/admin/member roles, email invitations and a public team page.
+- Collective and round-robin event types (weights, priority, fixed hosts, the reason for each
+  assignment is stored), managed event types with locked fields, dynamic group links (opt-in),
+  a team availability view, team workflows, and member removal that reassigns or cancels their
+  future team bookings.
+- Routing forms: builder, ordered AND/OR rules, mandatory fallback, prefill into booking
+  questions, stored trace per submission with CSV export, embeddable and headless routing.
+
+### Automation and integrations
+- Email notifications with iCalendar attachments, email workflows and a default 24-hour
+  reminder.
+- Signed webhooks (HMAC-SHA256) for personal and team scopes, including routing-form submissions,
+  with retries, an SSRF guard and a delivery log.
+- Reminder workflows carry working cancel/reschedule links; event-type descriptions support a
+  safe Markdown subset.
+- Embed script (inline, popup, floating button) with `postMessage` events, auto-resize and a
+  `frame-ancestors` allow-list.
+
+### Operations and security
+- `node cli.js migrate | rotate-keys | create-admin` for operators (encryption key rotation
+  re-encrypts every stored secret).
+- One Docker image (web, worker, CLI) and a `docker compose up -d` stack with PostgreSQL only
+  (no Redis); runtime configuration; automatic, forward-only migrations; health endpoints
+  (`/api/health/live` reports the version) and Prometheus metrics.
+- Email + password, magic link, Google and Microsoft sign-in; account lockout and rate limits;
+  per-request CSP nonces; optional self-hosted proof-of-work CAPTCHA (ALTCHA); account deletion.
+- Every page links to the source code (AGPL-3.0 §13); set `SOURCE_URL` if you run a fork.
+
+### Known limitations
+See the verification notes and deviations per milestone in
+[implementation steps](docs/04-development/implementation-steps.md) and the requirement status in
+[traceability](docs/05-roadmap/traceability.md). In short:
+- Google, Microsoft 365 and Zoom were verified with contract tests and fakes, not yet with live
+  accounts; CalDAV was verified against a real server.
+- Team event types have no seats, recurring series or single-use links; calendar events are
+  written to the organizer's calendar only (co-hosts are invited); seated bookings and recurring
+  series can't be rescheduled as a whole.
+- No public REST API or API keys yet (planned, roadmap M5); webhooks and embeds are the
+  integration points. Payments, insights and translations are also M5.
+- No session list or password-change screen yet (password reset works and signs out everywhere).

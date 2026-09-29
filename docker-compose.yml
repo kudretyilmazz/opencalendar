@@ -1,0 +1,59 @@
+# Production-style stack: `cp .env.example .env`, fill in the secrets (incl. POSTGRES_PASSWORD),
+# then `docker compose up -d`. Add `--profile dev` to also start Mailpit (email at :8025).
+#
+# The app listens on 127.0.0.1 only: put a TLS reverse proxy (Caddy, nginx, Traefik) in front,
+# which also supplies client IPs for rate limits. APP_BIND=0.0.0.0 exposes it directly (not
+# recommended: per-IP limits then see forged or shared addresses).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opencalendar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: opencalendar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencalendar"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build: .
+    image: ${OPENCALENDAR_IMAGE:-opencalendar:local}
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgres://opencalendar:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/opencalendar
+      WORKER_MODE: external
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health/ready"]
+      interval: 10s
+      start_period: 30s
+      retries: 10
+
+  worker:
+    image: ${OPENCALENDAR_IMAGE:-opencalendar:local}
+    restart: unless-stopped
+    command: ["node", "worker.js"]
+    depends_on:
+      app: { condition: service_healthy } # app applies migrations first
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgres://opencalendar:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/opencalendar
+    healthcheck:
+      disable: true
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["dev"]
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+
+volumes:
+  pgdata:

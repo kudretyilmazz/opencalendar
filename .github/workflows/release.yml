@@ -1,0 +1,105 @@
+name: Release
+
+# Publishes a version when a tag like v1.0.0 is pushed: the full CI suite runs first, then the
+# multi-arch image goes to GHCR (1.0.0, 1.0, 1 and latest for stable versions) and a GitHub
+# Release is created from that version's CHANGELOG.md section.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+", "v[0-9]+.[0-9]+.[0-9]+-*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
+  publish:
+    name: Publish image and release
+    needs: [ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: The tag must point at a commit on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Version and tags
+        id: meta
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$version" != "$pkg" ]; then echo "Tag v$version does not match package.json $pkg"; exit 1; fi
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags="$image:$version"
+          if [[ "$version" != *-* ]]; then
+            major="${version%%.*}"; minor="${version#*.}"; minor="${minor%%.*}"
+            tags="$tags,$image:$major.$minor,$image:$major,$image:latest"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+          { echo "version=$version"; echo "image=$image"; echo "tags=$tags"; } >> "$GITHUB_OUTPUT"
+      - name: Release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "CHANGELOG.md has no section for $VERSION"; exit 1; fi
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Scan first, publish after: a vulnerable image is never pushed.
+      - name: Build for scanning (amd64, local)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: opencalendar:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan image (fails on high/critical)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opencalendar:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Build and publish multi-arch
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          flag="--latest"; if [ "$PRERELEASE" = "true" ]; then flag="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "OpenCalendar $GITHUB_REF_NAME" --notes-file release-notes.md "$flag"
