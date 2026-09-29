@@ -20,7 +20,10 @@ async function load(key: TargetKey) {
   return { target, host: target.host, eventType: target.eventType, schedule };
 }
 
-const cache = new TtlCache<Awaited<ReturnType<typeof load>>>(PUBLIC_CONTEXT_TTL_MS, 2000);
+// On globalThis so host-side saves (Server Actions) clear the same cache the slot route reads:
+// Next.js bundles them separately, but in one process.
+const globalCaches = globalThis as typeof globalThis & { __ocPublicContextCache?: TtlCache<Awaited<ReturnType<typeof load>>> };
+const cache = (globalCaches.__ocPublicContextCache ??= new TtlCache<Awaited<ReturnType<typeof load>>>(PUBLIC_CONTEXT_TTL_MS, 2000));
 
 export function publicBookingContext(key: TargetKey) {
   const id = [key.team ?? "", key.username ?? "", key.slug].map((v) => v.toLowerCase()).join("/");

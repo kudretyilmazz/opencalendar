@@ -14,6 +14,9 @@ export default defineConfig({
           include: ["{lib,features,jobs,db}/**/*.test.{ts,tsx}"],
           exclude: ["**/*.int.test.{ts,tsx}"],
           environment: "node",
+          // Property-based and budget tests are CPU-heavy; shared CI runners with coverage
+          // instrumentation can take several times longer than a laptop.
+          testTimeout: 20_000,
         },
       },
       {

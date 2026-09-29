@@ -124,7 +124,11 @@ export async function loadHostInput(db: DbOrTx, input: HostDataInput): Promise<H
  * re-read everything inside the transaction.
  */
 const DISPLAY_TTL_MS = 1_000;
-const displayCache = new TtlCache<HostData>(DISPLAY_TTL_MS, 5_000);
+// On globalThis: Next.js bundles route handlers and Server Actions separately, each with its
+// own module instances, but they run in one process — an action's invalidation must reach the
+// slot route's cache.
+const globalCaches = globalThis as typeof globalThis & { __ocHostDisplayCache?: TtlCache<HostData> };
+const displayCache = (globalCaches.__ocHostDisplayCache ??= new TtlCache<HostData>(DISPLAY_TTL_MS, 5_000));
 
 /**
  * Called after every booking change in this process (book, hold, cancel, decide, seats), so the
