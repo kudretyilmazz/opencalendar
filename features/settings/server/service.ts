@@ -67,3 +67,8 @@ export async function updateProfile(
     throw error;
   }
 }
+
+/** Sets only the time zone (the dashboard's one-click "use my time zone"); callers validate it. */
+export async function setTimeZone(db: Database, userId: string, timeZone: string): Promise<void> {
+  await db.update(user).set({ timeZone }).where(eq(user.id, userId));
+}

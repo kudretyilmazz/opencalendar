@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
-import { Alert, Button, Field, Input } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 import { formatDateTimeRange, prefers12Hour } from "@/lib/format";
 import { cancelBookingAction } from "../server/public-actions";
 
@@ -27,7 +33,7 @@ export function CancelBookingForm({ uid, token, label = "Cancel booking", series
 
   if (!open) {
     return (
-      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
         {label}
       </Button>
     );
@@ -49,22 +55,37 @@ export function CancelBookingForm({ uid, token, label = "Cancel booking", series
   return (
     <form onSubmit={submit} className="flex w-full flex-col gap-3">
       {series && (
-        <fieldset className="flex flex-col gap-1.5 text-sm">
-          <legend className="mb-1 font-medium">What do you want to cancel?</legend>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="scope" checked={scope === "booking"} onChange={() => setScope("booking")} /> Only this occurrence
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="scope" checked={scope === "series"} onChange={() => setScope("series")} /> This and all remaining occurrences
-          </label>
-        </fieldset>
+        <FieldSet className="gap-1.5">
+          <FieldLegend variant="label" className="mb-1">
+            What do you want to cancel?
+          </FieldLegend>
+          <RadioGroup name="scope" value={scope} onValueChange={(v) => setScope(v === "series" ? "series" : "booking")}>
+            <Field orientation="horizontal">
+              <RadioGroupItem id="scope-booking" value="booking" />
+              <FieldLabel htmlFor="scope-booking" className="font-normal">
+                Only this occurrence
+              </FieldLabel>
+            </Field>
+            <Field orientation="horizontal">
+              <RadioGroupItem id="scope-series" value="series" />
+              <FieldLabel htmlFor="scope-series" className="font-normal">
+                This and all remaining occurrences
+              </FieldLabel>
+            </Field>
+          </RadioGroup>
+        </FieldSet>
       )}
-      <Field label="Reason for cancelling (optional)" htmlFor="reason">
+      <FormField label="Reason for cancelling (optional)" htmlFor="reason">
         <Input id="reason" name="reason" maxLength={500} />
-      </Field>
-      {error && <Alert tone="error">{error}</Alert>}
+      </FormField>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" variant="destructive" disabled={pending}>
+          {pending && <Spinner />}
           {pending ? "Cancelling…" : "Confirm cancellation"}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>

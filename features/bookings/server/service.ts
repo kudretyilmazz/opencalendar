@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Database, Tx } from "@/db/client";
 import { attendee, booking, bookingHost, bookingReference, eventType, eventTypeQuestion, slotReservation, user } from "@/db/schema";
 import { computeSlots, computeTeamSlots, isSlotAvailable, type TeamHostInput, type TeamSlot } from "@/lib/availability";
@@ -387,27 +387,35 @@ export type BookingTab = (typeof BOOKING_TABS)[number];
 
 export type HostBookingFilter = { tab: BookingTab; eventTypeId?: string; from?: number; to?: number; now: number };
 
-export async function listHostBookings(db: Database, hostId: string, filter: HostBookingFilter) {
-  const now = new Date(filter.now);
-  const tabWhere = {
-    upcoming: and(inArray(booking.status, ["accepted"]), gte(booking.endAt, now)),
+/**
+ * Which bookings a tab shows. Upcoming includes requests still waiting for the host's decision
+ * (they hold the time too); Unconfirmed shows only those.
+ */
+function tabWhere(tab: BookingTab, now: Date) {
+  return {
+    upcoming: and(inArray(booking.status, ["accepted", "pending"]), gte(booking.endAt, now)),
     unconfirmed: and(inArray(booking.status, ["pending"]), gte(booking.endAt, now)),
     past: and(inArray(booking.status, [...ACTIVE]), lt(booking.endAt, now)),
     cancelled: inArray(booking.status, ["cancelled", "rejected"]),
-  }[filter.tab];
+  }[tab];
+}
+
+/** The host's bookings (any role on the booking) narrowed by the dashboard's filters. */
+function filterWhere(hostId: string, filter: Omit<HostBookingFilter, "tab">) {
+  return and(
+    isHostOf(hostId),
+    filter.eventTypeId ? eq(booking.eventTypeId, filter.eventTypeId) : undefined,
+    filter.from !== undefined ? gte(booking.startAt, new Date(filter.from)) : undefined,
+    filter.to !== undefined ? lt(booking.startAt, new Date(filter.to)) : undefined,
+  );
+}
+
+export async function listHostBookings(db: Database, hostId: string, filter: HostBookingFilter) {
   const rows = await db
     .select({ booking, eventTitle: eventType.title })
     .from(booking)
     .innerJoin(eventType, eq(eventType.id, booking.eventTypeId))
-    .where(
-      and(
-        isHostOf(hostId),
-        tabWhere,
-        filter.eventTypeId ? eq(booking.eventTypeId, filter.eventTypeId) : undefined,
-        filter.from !== undefined ? gte(booking.startAt, new Date(filter.from)) : undefined,
-        filter.to !== undefined ? lt(booking.startAt, new Date(filter.to)) : undefined,
-      ),
-    )
+    .where(and(filterWhere(hostId, filter), tabWhere(filter.tab, new Date(filter.now))))
     .orderBy(filter.tab === "upcoming" || filter.tab === "unconfirmed" ? asc(booking.startAt) : desc(booking.startAt))
     .limit(200);
   const ids = rows.map((r) => r.booking.id);
@@ -434,3 +442,20 @@ export async function listHostBookings(db: Database, hostId: string, filter: Hos
 }
 
 export type HostBooking = Awaited<ReturnType<typeof listHostBookings>>[number];
+
+/** Tab counts for the bookings page, with the list's filters: upcoming, and those awaiting a decision. */
+export async function countHostBookings(
+  db: Database,
+  hostId: string,
+  filter: Omit<HostBookingFilter, "tab">,
+): Promise<{ upcoming: number; unconfirmed: number }> {
+  const now = new Date(filter.now);
+  const [row] = await db
+    .select({
+      upcoming: sql<number>`count(*) FILTER (WHERE ${tabWhere("upcoming", now)})`.mapWith(Number),
+      unconfirmed: sql<number>`count(*) FILTER (WHERE ${tabWhere("unconfirmed", now)})`.mapWith(Number),
+    })
+    .from(booking)
+    .where(and(filterWhere(hostId, filter), gte(booking.endAt, now)));
+  return { upcoming: row?.upcoming ?? 0, unconfirmed: row?.unconfirmed ?? 0 };
+}

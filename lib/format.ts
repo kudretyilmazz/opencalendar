@@ -22,6 +22,12 @@ export const formatTime = (ms: number, prefs: FormatPrefs) => dtf(prefs, { hour:
 export const formatDateLong = (ms: number, prefs: FormatPrefs) =>
   dtf(prefs, { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(ms);
 
+/** "Tuesday, 29 September" (order and words follow the locale). */
+export const formatWeekdayDate = (ms: number, prefs: FormatPrefs) => dtf(prefs, { weekday: "long", day: "numeric", month: "long" }).format(ms);
+
+/** "Tue, 29 Sep" (order and words follow the locale). */
+export const formatShortDate = (ms: number, prefs: FormatPrefs) => dtf(prefs, { weekday: "short", day: "numeric", month: "short" }).format(ms);
+
 export const formatDateTimeRange = (start: number, end: number, prefs: FormatPrefs) =>
   `${formatDateLong(start, prefs)}, ${formatTime(start, prefs)} – ${formatTime(end, prefs)}`;
 

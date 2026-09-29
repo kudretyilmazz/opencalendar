@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { guardBrowserErrors } from "./helpers";
+import { guardBrowserErrors, pickOption } from "./helpers";
 import { uniqueEmail, waitForEmailLink } from "./mailpit";
 
 const PASSWORD = "e2e correct horse battery";
@@ -54,17 +54,20 @@ test("sign up → verify email → dashboard → save settings → sign out → 
   await page.getByRole("link", { name: "Settings" }).click();
   const username = `erin${Date.now()}`;
   await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Time zone").selectOption("Europe/Istanbul");
-  await page.getByLabel("Week starts on").selectOption("0");
-  await page.getByLabel("Time format").selectOption("12");
-  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+  await pickOption(page, page.getByLabel("Time zone"), "Europe/Istanbul");
+  await pickOption(page, page.getByLabel("Week starts on"), "Sunday");
+  await page.getByRole("radio", { name: "12-hour" }).check();
+  await page.getByRole("radio", { name: "Dark", exact: true }).check();
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Settings saved." })).toBeVisible();
+  // App shell: only <main> scrolls. Radix's hidden form inputs (mounted after hydration, so check
+  // on a live page) once stretched the document past the window here, leaving a grey band.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   await expect(page.locator("html")).toHaveClass(/dark/);
 
   await page.reload();
   await expect(page.getByLabel("Username")).toHaveValue(username);
-  await expect(page.getByLabel("Time zone")).toHaveValue("Europe/Istanbul");
+  await expect(page.locator('input[name="timeZone"]')).toHaveValue("Europe/Istanbul");
 
   // Reserved usernames are rejected with a field error.
   await page.getByLabel("Username").fill("dashboard");

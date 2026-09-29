@@ -1,10 +1,11 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { LogOut, Menu, Moon, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/theme-provider";
-import { useEffect } from "react";
-import { Button } from "@/components/ui/primitives";
+import { type ReactNode, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { authClient } from "@/lib/auth/client";
 
 export function SignOutButton() {
@@ -12,14 +13,16 @@ export function SignOutButton() {
   return (
     <Button
       variant="ghost"
-      className="h-9 w-full justify-start px-3"
+      size="icon-lg"
+      aria-label="Sign out"
+      className="shrink-0 rounded-md text-muted-foreground hover:text-foreground"
       onClick={async () => {
         await authClient.signOut();
         router.push("/login");
         router.refresh();
       }}
     >
-      Sign out
+      <LogOut className="size-[18px]" strokeWidth={1.8} aria-hidden />
     </Button>
   );
 }
@@ -30,12 +33,13 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      className="h-9 w-9 px-0"
+      size="icon-lg"
       aria-label="Toggle dark mode"
+      className="rounded-md text-muted-foreground hover:text-foreground"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      <Sun className="hidden size-4 dark:block" aria-hidden />
-      <Moon className="size-4 dark:hidden" aria-hidden />
+      <Sun className="hidden size-[18px] dark:block" aria-hidden />
+      <Moon className="size-[18px] dark:hidden" aria-hidden />
     </Button>
   );
 }
@@ -45,4 +49,25 @@ export function ThemeSync({ theme }: { theme: "system" | "light" | "dark" }) {
   const { setTheme } = useTheme();
   useEffect(() => setTheme(theme), [theme, setTheme]);
   return null;
+}
+
+/** Phone-width navigation: the sidebar's content in a sheet, closed again once a link is followed. */
+export function MobileNav({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon-lg" aria-label="Open menu" className="size-11 rounded-md">
+          <Menu className="size-5" aria-hidden />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-72 gap-0 bg-card p-0">
+        <SheetTitle className="sr-only">Menu</SheetTitle>
+        <SheetDescription className="sr-only">Main navigation</SheetDescription>
+        <div className="flex h-full flex-col" onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)}>
+          {children}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }

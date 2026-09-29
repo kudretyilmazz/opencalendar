@@ -1,107 +1,118 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Alert, Button, Card } from "@/components/ui/primitives";
+import { Plus } from "lucide-react";
+import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
+import { CopyButton } from "@/features/dashboard/components/copy-button";
+import { BookingPageStrip } from "@/features/event-types/components/booking-page-strip";
+import { EventTypeList } from "@/features/event-types/components/event-type-list";
+import { TeamEventTypes } from "@/features/event-types/components/team-event-types";
 import {
-  deleteEventTypeAction,
-  duplicateEventTypeAction,
-  moveEventTypeAction,
-  toggleEventTypeAction,
-} from "@/features/event-types/server/actions";
-import { durationsOf, listEventTypes } from "@/features/event-types/server/service";
+  durationLabel,
+  type EventTypeListRow,
+  locationLabel,
+  rowBadges,
+  statusOf,
+  weekSummary,
+} from "@/features/event-types/list-view";
+import { countWeekBookings, listMyTeamEventTypes } from "@/features/event-types/server/list";
+import { durationsOf, type EventTypeView, listEventTypes } from "@/features/event-types/server/service";
+import { getProfile } from "@/features/settings/server/service";
 import { requireUser } from "@/lib/auth/session";
+import { requestTime } from "@/lib/clock";
 import { getEnv } from "@/lib/env";
-import { formatDuration } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Event types" };
+
+function toRow(et: EventTypeView, weekCounts: Record<string, number>, pageUrl: string | null): EventTypeListRow {
+  const status = statusOf(et);
+  return {
+    id: et.id,
+    title: et.title,
+    slug: et.slug,
+    status,
+    durations: durationLabel(durationsOf(et)),
+    location: locationLabel(et.locations),
+    badges: rowBadges(et),
+    week: weekSummary(status, weekCounts[et.id] ?? 0),
+    url: pageUrl ? `${pageUrl}/${et.slug}` : null,
+  };
+}
 
 export default async function EventTypesPage({ searchParams }: PageProps<"/event-types">) {
   const user = await requireUser();
   const { error } = await searchParams;
-  const eventTypes = await listEventTypes(getDb(), user.id);
-  const profileUrl = user.username ? `${getEnv().APP_URL}/${user.username}` : null;
+  const db = getDb();
+  const profile = await getProfile(db, user.id);
+  const timeZone = profile?.timeZone ?? "UTC";
+  const weekStart = profile?.weekStart ?? 1;
+  const [eventTypes, weekCounts, teamTypes] = await Promise.all([
+    listEventTypes(db, user.id),
+    countWeekBookings(db, user.id, { now: requestTime(), timeZone, weekStart }),
+    listMyTeamEventTypes(db, user.id),
+  ]);
+
+  const appUrl = getEnv().APP_URL.replace(/\/$/, "");
+  const username = profile?.username ?? user.username ?? null;
+  const pageUrl = username ? `${appUrl}/${username}` : null;
+  const rows = eventTypes.map((et) => toRow(et, weekCounts, pageUrl));
+  const publicCount = rows.filter((r) => r.status === "active").length;
+  const hiddenCount = rows.filter((r) => r.status === "hidden").length;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Event types</h1>
-          <p className="text-sm text-muted">
-            {profileUrl ? (
-              <>
-                Your booking page:{" "}
-                <a href={profileUrl} className="font-medium text-foreground underline-offset-4 hover:underline">
-                  {profileUrl}
-                </a>
-              </>
-            ) : (
-              "Create the kinds of meetings people can book with you."
+    <div className={PAGE_CLASS}>
+      <PageHeader
+        title="Event types"
+        description="Meetings people can book from your page."
+        actions={
+          <>
+            {pageUrl && (
+              <CopyButton value={pageUrl} variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
+                Copy page link
+              </CopyButton>
             )}
-          </p>
-        </div>
-        <Link href="/event-types/new" className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
-          New event type
-        </Link>
-      </div>
-      {typeof error === "string" && <Alert tone="error">{error.slice(0, 200)}</Alert>}
-      {!user.username && (
-        <Alert>
-          <Link href="/settings/profile" className="font-medium underline">
-            Choose a username
-          </Link>{" "}
-          to publish your booking page.
+            <Button asChild className={HEADER_BUTTON_CLASS}>
+              <Link href="/event-types/new">
+                <Plus aria-hidden />
+                New event type
+              </Link>
+            </Button>
+          </>
+        }
+      />
+      {typeof error === "string" && (
+        <Alert variant="destructive">
+          <AlertDescription>{error.slice(0, 200)}</AlertDescription>
         </Alert>
       )}
-      {!user.emailVerified && <Alert tone="error">Verify your email address to publish your booking page.</Alert>}
-      {eventTypes.length === 0 ? (
-        <Card className="text-sm text-muted">No event types yet. Create your first one to start taking bookings.</Card>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {eventTypes.map((et, i) => (
-            <li key={et.id}>
-              <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className={et.enabled ? "" : "opacity-60"}>
-                  <Link href={`/event-types/${et.id}`} className="font-medium underline-offset-4 hover:underline">
-                    {et.title}
-                  </Link>
-                  {et.hidden && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-xs">Hidden</span>}
-                  {!et.enabled && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-xs">Off</span>}
-                  <p className="text-sm text-muted">
-                    {durationsOf(et).map((d) => formatDuration(d, "en")).join(" / ")} · /{user.username ?? "username"}/{et.slug}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <form action={moveEventTypeAction.bind(null, et.id, "up")}>
-                    <Button variant="ghost" className="h-9 px-2" aria-label={`Move ${et.title} up`} disabled={i === 0}>
-                      ↑
-                    </Button>
-                  </form>
-                  <form action={moveEventTypeAction.bind(null, et.id, "down")}>
-                    <Button variant="ghost" className="h-9 px-2" aria-label={`Move ${et.title} down`} disabled={i === eventTypes.length - 1}>
-                      ↓
-                    </Button>
-                  </form>
-                  <form action={toggleEventTypeAction.bind(null, et.id, !et.enabled)}>
-                    <Button variant="secondary" className="h-9">
-                      {et.enabled ? "Turn off" : "Turn on"}
-                    </Button>
-                  </form>
-                  <form action={duplicateEventTypeAction.bind(null, et.id)}>
-                    <Button variant="secondary" className="h-9">
-                      Duplicate
-                    </Button>
-                  </form>
-                  <form action={deleteEventTypeAction.bind(null, et.id)}>
-                    <Button variant="ghost" className="h-9" aria-label={`Delete ${et.title}`}>
-                      Delete
-                    </Button>
-                  </form>
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
+      {!user.emailVerified && (
+        <Alert variant="destructive">
+          <AlertDescription>Verify your email address to publish your booking page.</AlertDescription>
+        </Alert>
       )}
+      <BookingPageStrip
+        name={profile?.name ?? user.name}
+        url={pageUrl}
+        display={pageUrl ? pageUrl.replace(/^https?:\/\//, "") : ""}
+        publicCount={publicCount}
+        hiddenCount={hiddenCount}
+      />
+      {rows.length === 0 ? (
+        <Card className="items-start gap-3 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            No event types yet. Create your first one to start taking bookings.
+          </p>
+          <Button asChild variant="outline" className="h-10 rounded-md bg-transparent px-3.5 text-sm">
+            <Link href="/event-types/new">Create an event type</Link>
+          </Button>
+        </Card>
+      ) : (
+        <EventTypeList rows={rows} />
+      )}
+      <TeamEventTypes items={teamTypes} />
     </div>
   );
 }

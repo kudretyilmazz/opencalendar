@@ -1,6 +1,11 @@
 "use client";
 
-import { Field, Input, Select } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox, timeZoneOptions } from "@/components/ui/combobox";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EVENT_NAME_VARIABLES, type EventTypeFormInput } from "../schemas";
 
 type Props = {
@@ -20,25 +25,41 @@ const PERIODS = [
 
 const numOrNull = (value: string) => (value === "" ? null : Number(value));
 
+/** Radix SelectItem values must be non-empty; stands in for "Off". */
+const OFF = "__off";
+
 function Check({
+  id,
   label,
   checked,
   onChange,
   hint,
 }: {
+  id: string;
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   hint?: string;
 }) {
   return (
-    <label className="flex items-start gap-2 text-sm">
-      <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>
-        {label}
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
-      </span>
-    </label>
+    <Field orientation="horizontal">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => onChange(v === true)}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+      />
+      <FieldContent>
+        <FieldLabel htmlFor={id} className="font-normal">
+          {label}
+        </FieldLabel>
+        {hint && (
+          <FieldDescription id={`${id}-hint`} className="text-xs">
+            {hint}
+          </FieldDescription>
+        )}
+      </FieldContent>
+    </Field>
   );
 }
 
@@ -56,10 +77,12 @@ function LimitsFields({
   onChange: (v: Limits) => void;
 }) {
   return (
-    <fieldset className="grid gap-3 sm:grid-cols-4">
-      <legend className="mb-1 text-sm font-medium sm:col-span-4">{legend}</legend>
+    <FieldSet className="grid gap-3 sm:grid-cols-4">
+      <FieldLegend variant="label" className="sm:col-span-4">
+        {legend}
+      </FieldLegend>
       {PERIODS.map(([period, label]) => (
-        <Field key={period} label={`${unit} ${label}`} htmlFor={`${idPrefix}-${period}`}>
+        <FormField key={period} label={`${unit} ${label}`} htmlFor={`${idPrefix}-${period}`}>
           <Input
             id={`${idPrefix}-${period}`}
             type="number"
@@ -70,9 +93,9 @@ function LimitsFields({
               onChange(e.target.value === "" ? rest : { ...rest, [period]: Number(e.target.value) });
             }}
           />
-        </Field>
+        </FormField>
       ))}
-    </fieldset>
+    </FieldSet>
   );
 }
 
@@ -87,13 +110,14 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
 
       <div className="flex flex-col gap-2">
         <Check
+          id="requiresConfirmation"
           label="Requires confirmation"
           hint="New bookings wait until you accept them."
           checked={Boolean(form.requiresConfirmation)}
           onChange={(v) => set({ requiresConfirmation: v })}
         />
         {form.requiresConfirmation && (
-          <Field
+          <FormField
             label="Only when the booking starts within (hours)"
             htmlFor="confirmationThreshold"
             hint="Leave empty to always require confirmation."
@@ -111,14 +135,14 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
                 })
               }
             />
-          </Field>
+          </FormField>
         )}
       </div>
 
       {!team && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
+            <FormField
               label="Seats per time slot"
               htmlFor="seatsPerSlot"
               hint="For group events: several people book the same time. Leave empty for 1:1."
@@ -132,10 +156,11 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
                 value={form.seatsPerSlot ?? ""}
                 onChange={(e) => set({ seatsPerSlot: numOrNull(e.target.value) })}
               />
-            </Field>
+            </FormField>
             {form.seatsPerSlot ? (
               <div className="flex items-end pb-2">
                 <Check
+                  id="seatsShowAttendees"
                   label="Attendees can see each other"
                   checked={Boolean(form.seatsShowAttendees)}
                   onChange={(v) => set({ seatsShowAttendees: v })}
@@ -145,22 +170,26 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Recurring bookings" htmlFor="recurringFrequency" error={errors.recurringFrequency}>
+            <FormField label="Recurring bookings" htmlFor="recurringFrequency" error={errors.recurringFrequency}>
               <Select
-                id="recurringFrequency"
-                value={form.recurringFrequency ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value as "weekly" | "monthly" | "";
-                  set({ recurringFrequency: v || null, recurringMaxCount: v ? (form.recurringMaxCount ?? 4) : null });
+                value={form.recurringFrequency ?? OFF}
+                onValueChange={(value) => {
+                  const v = value === OFF ? null : (value as "weekly" | "monthly");
+                  set({ recurringFrequency: v, recurringMaxCount: v ? (form.recurringMaxCount ?? 4) : null });
                 }}
               >
-                <option value="">Off</option>
-                <option value="weekly">Invitees can book weekly repeats</option>
-                <option value="monthly">Invitees can book monthly repeats</option>
+                <SelectTrigger id="recurringFrequency" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={OFF}>Off</SelectItem>
+                  <SelectItem value="weekly">Invitees can book weekly repeats</SelectItem>
+                  <SelectItem value="monthly">Invitees can book monthly repeats</SelectItem>
+                </SelectContent>
               </Select>
-            </Field>
+            </FormField>
             {form.recurringFrequency && (
-              <Field label="Maximum occurrences" htmlFor="recurringMaxCount" error={errors.recurringMaxCount}>
+              <FormField label="Maximum occurrences" htmlFor="recurringMaxCount" error={errors.recurringMaxCount}>
                 <Input
                   id="recurringMaxCount"
                   type="number"
@@ -169,7 +198,7 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
                   value={form.recurringMaxCount ?? ""}
                   onChange={(e) => set({ recurringMaxCount: numOrNull(e.target.value) })}
                 />
-              </Field>
+              </FormField>
             )}
           </div>
         </>
@@ -193,17 +222,19 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">Booking policies</h3>
         <Check
+          id="disableCancelling"
           label="Invitees can't cancel online"
           checked={Boolean(form.disableCancelling)}
           onChange={(v) => set({ disableCancelling: v })}
         />
         <Check
+          id="disableRescheduling"
           label="Invitees can't reschedule online"
           checked={Boolean(form.disableRescheduling)}
           onChange={(v) => set({ disableRescheduling: v })}
         />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field
+          <FormField
             label="No self-service changes within (hours of the start)"
             htmlFor="cancelCutoff"
             error={errors.cancelCutoffMinutes}
@@ -217,27 +248,24 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
                 set({ cancelCutoffMinutes: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })
               }
             />
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Always show times in"
             htmlFor="lockTimeZone"
             hint="Leave empty to use the invitee's time zone."
             error={errors.lockTimeZone}
           >
-            <Input
+            <Combobox
               id="lockTimeZone"
-              list="lock-tz-options"
+              options={[{ value: "", label: "The invitee's time zone" }, ...timeZoneOptions(timeZones)]}
               value={form.lockTimeZone ?? ""}
-              onChange={(e) => set({ lockTimeZone: e.target.value || null })}
+              onValueChange={(value) => set({ lockTimeZone: value || null })}
+              searchPlaceholder="Search time zones…"
+              aria-invalid={errors.lockTimeZone ? true : undefined}
             />
-            <datalist id="lock-tz-options">
-              {timeZones.map((tz) => (
-                <option key={tz} value={tz} />
-              ))}
-            </datalist>
-          </Field>
+          </FormField>
         </div>
-        <Field
+        <FormField
           label="Event name in calendars"
           htmlFor="eventNameTemplate"
           hint={`Variables: ${EVENT_NAME_VARIABLES.join(" ")}. Leave empty for "{event} between {host} and {attendee}".`}
@@ -249,11 +277,11 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
             value={form.eventNameTemplate ?? ""}
             onChange={(e) => set({ eventNameTemplate: e.target.value || null })}
           />
-        </Field>
+        </FormField>
       </div>
 
       <div className="flex flex-col gap-3">
-        <Field
+        <FormField
           label="After booking, redirect to"
           htmlFor="redirectUrl"
           hint="An https:// page of yours instead of the confirmation page."
@@ -265,9 +293,10 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
             value={form.redirectUrl ?? ""}
             onChange={(e) => set({ redirectUrl: e.target.value || null })}
           />
-        </Field>
+        </FormField>
         {form.redirectUrl && (
           <Check
+            id="redirectForwardParams"
             label="Add booking details to the redirect URL"
             hint="uid, title, start, end, status, type, name and email as query parameters."
             checked={Boolean(form.redirectForwardParams)}
@@ -278,6 +307,7 @@ export function AdvancedSettings({ form, set, errors, timeZones, team }: Props &
 
       {!team && (
         <Check
+          id="linkOnly"
           label="Only bookable with a single-use link"
           hint="Create links below after saving. Each link books once."
           checked={Boolean(form.linkOnly)}

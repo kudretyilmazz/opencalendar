@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { configureProfile, expectAccessible, firstSlotButton, guardBrowserErrors, pickFirstAvailableDay, signUpVerified } from "./helpers";
+import { configureProfile, expectAccessible, firstSlotButton, guardBrowserErrors, pickFirstAvailableDay, pickOption, signUpVerified } from "./helpers";
 import { uniqueEmail, waitForEmail } from "./mailpit";
 
 /**
@@ -59,7 +59,7 @@ test("round robin assigns each booking to the correct host (flow 7)", async ({ b
   await expect(owner.getByRole("heading", { name: "Team intro" })).toBeVisible();
   await owner.getByLabel("Olga Owner").check();
   await owner.getByLabel("Rui Robin").check();
-  await owner.getByLabel("Priority for Rui Robin").selectOption("4");
+  await pickOption(owner, owner.getByLabel("Priority for Rui Robin"), "highest");
   await owner.getByRole("button", { name: "Save hosts" }).click();
   await expect(owner.getByText("Hosts saved.")).toBeVisible();
   await expectAccessible(owner);

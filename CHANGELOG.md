@@ -6,6 +6,30 @@ All notable changes to OpenCalendar are documented here. The format follows
 image and restart"; migrations run automatically (see
 [self-hosting](docs/03-architecture/self-hosting.md#upgrades)).
 
+## [Unreleased]
+
+### Changed
+- The UI is built on shadcn/ui: dates use a calendar popover, times a slot picker, time zones a
+  searchable list, confirmations a dialog; no browser-default form controls remain.
+- A new dashboard home: today's and tomorrow's bookings with join, accept and decline, this week
+  at a glance (meetings, requests, no-shows), your booking link, event types and working hours. New
+  accounts get a setup checklist with progress and a one-click "use my time zone".
+- Grouped sidebar navigation with icons and a count of bookings awaiting confirmation; a menu
+  sheet on phones.
+- Every dashboard page redesigned in the same language: event types (filters, search, weekly
+  counts, on/off switch, actions menu, team event types), bookings (tab counts, date-range filter,
+  rows grouped by day with expandable details; Upcoming now includes requests awaiting
+  confirmation), availability (schedule switcher, week at a glance, copy hours to other days),
+  settings (sectioned layout, theme tiles), calendars (per-calendar conflict switch and destination,
+  connect dialogs), teams (cards with stats, members table), routing forms (response trend, latest
+  responses, rules summary) and webhooks (health, delivery table with a failed filter).
+- Destructive actions (delete schedule, team, event type, routing form, webhook, account; disconnect
+  a calendar) ask for confirmation first.
+
+### Fixed
+- Saving the schedule, event type, routing form, workflow or team forms no longer snaps checkboxes,
+  switches and selects back to their first value on screen.
+
 ## [1.0.0] - 2026-09-29
 
 First stable release: self-hostable scheduling with team features in the open core (AGPL-3.0).

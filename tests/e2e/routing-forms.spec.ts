@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { configureProfile, createEventType, expectAccessible, firstSlotButton, guardBrowserErrors, pickFirstAvailableDay, queryValue, signUpVerified } from "./helpers";
+import { configureProfile, createEventType, expectAccessible, firstSlotButton, guardBrowserErrors, pickFirstAvailableDay, queryValue, pickOption, signUpVerified } from "./helpers";
 import { uniqueEmail } from "./mailpit";
 
 /**
@@ -26,16 +26,16 @@ test("routing form: rule to a prefilled booking page, fallback message, headless
   // Builder (RTE-001/002/003)
   await page.goto("/routing-forms/new");
   await page.getByLabel("Name", { exact: true }).fill("Qualify");
-  await page.locator("#newFieldType").selectOption("text");
+  await pickOption(page, page.locator("#newFieldType"), "Text");
   await page.getByRole("button", { name: "Add question" }).click();
   await page.locator("#f-label-0").fill("Company");
   await page.locator("#f-key-0").fill("company");
   await page.getByRole("button", { name: "Add rule" }).click();
-  await page.locator("#rule-0-c0-field").selectOption("company");
-  await page.locator("#rule-0-c0-op").selectOption("contains");
+  await pickOption(page, page.locator("#rule-0-c0-field"), "Company");
+  await pickOption(page, page.locator("#rule-0-c0-op"), "contains");
   await page.locator("#rule-0-c0-value").fill("acme");
-  await page.locator("#rule-0-action-event").selectOption({ label: "Sales demo (/sales-demo)" });
-  await page.locator("#fallback-kind").selectOption("message");
+  await pickOption(page, page.locator("#rule-0-action-event"), "Sales demo (/sales-demo)");
+  await pickOption(page, page.locator("#fallback-kind"), "A custom message");
   await page.locator("#fallback-message").fill("Thanks! We will email you.");
   await page.getByRole("button", { name: "Save routing form" }).click();
   await expect(page).toHaveURL(/\/routing-forms\/(?!new$)[^/]+$/);

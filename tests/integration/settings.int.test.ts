@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { user } from "@/db/schema";
-import { getProfile, updateProfile } from "@/features/settings/server/service";
+import { getProfile, setTimeZone, updateProfile } from "@/features/settings/server/service";
 import { resetDatabase, testDatabase } from "./helpers";
 
 const { db, close } = testDatabase();
@@ -35,6 +35,12 @@ describe("profile settings service (ADM-005)", () => {
     expect(await updateProfile(db, "u2", input)).toEqual({ ok: true });
     expect(await getProfile(db, "u2")).toMatchObject(input);
     expect(await getProfile(db, "u1")).toMatchObject({ name: "Ada", username: "ada", timeZone: "UTC" });
+  });
+
+  it("sets only the time zone, only for that user", async () => {
+    await setTimeZone(db, "u2", "Europe/Istanbul");
+    expect(await getProfile(db, "u2")).toMatchObject({ name: "Grace", username: null, timeZone: "Europe/Istanbul" });
+    expect((await getProfile(db, "u1"))?.timeZone).toBe("UTC");
   });
 
   it("is idempotent for repeated saves", async () => {

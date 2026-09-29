@@ -1,7 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Alert, Button, Field, Input, Select } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import type { RoutingField } from "@/db/schema/routing";
 import { idle } from "@/lib/actions";
 import { emitEmbed, watchDimensions } from "@/lib/embed/bridge";
@@ -18,6 +26,9 @@ type Props = {
   embed: boolean;
   submit: (prev: SubmitState, formData: FormData) => Promise<SubmitState>;
 };
+
+/** Radix SelectItem values must be non-empty; this stands for "no answer". */
+const NONE = "__none";
 
 const EMBED_PARAMS = ["embed", "theme", "brand", "hideDetails", "layout"];
 
@@ -43,8 +54,8 @@ function navigate(url: string, embed: boolean): void {
 
 export function RoutingMessage({ message }: { message: string }) {
   return (
-    <Alert tone="success" className="whitespace-pre-line text-base">
-      {message}
+    <Alert variant="success">
+      <AlertDescription className="text-base whitespace-pre-line text-current">{message}</AlertDescription>
     </Alert>
   );
 }
@@ -69,14 +80,18 @@ export function PublicRoutingForm({ formId, name, description, fields, prefill, 
   }, [target, embed]);
 
   if (target?.kind === "message") return <RoutingMessage message={target.message} />;
-  if (target?.kind === "redirect") return <p role="status" className="text-sm text-muted">Redirecting…</p>;
+  if (target?.kind === "redirect") return <p role="status" className="text-sm text-muted-foreground">Redirecting…</p>;
 
   return (
     <form action={action} className="flex flex-col gap-4" data-form-id={formId}>
       <input type="hidden" name="payload" value={JSON.stringify({ answers })} />
       {!embed && <h1 className="text-2xl font-semibold">{name}</h1>}
-      {description && <p className="text-sm text-muted">{description}</p>}
-      {state.status === "error" && state.message && !state.fieldErrors && <Alert tone="error">{state.message}</Alert>}
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      {state.status === "error" && state.message && !state.fieldErrors && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
+      )}
       {fields.map((f) => {
         const id = `rf-${f.key}`;
         const error = errors[f.key];
@@ -84,44 +99,58 @@ export function PublicRoutingForm({ formId, name, description, fields, prefill, 
         if (f.type === "radio" || f.type === "multi_select") {
           const selected = Array.isArray(value) ? value : value ? [value] : [];
           return (
-            <fieldset key={f.key} className="flex flex-col gap-1.5" aria-describedby={error ? `${id}-error` : undefined}>
-              <legend className="text-sm font-medium">
+            <FieldSet key={f.key} className="gap-1.5" aria-describedby={error ? `${id}-error` : undefined}>
+              <FieldLegend variant="label" className="mb-1">
                 {f.label}
                 {f.required && <span aria-hidden> *</span>}
-              </legend>
-              {f.options.map((o, i) => (
-                <label key={o} className="flex items-center gap-2 text-sm">
-                  <input
-                    type={f.type === "radio" ? "radio" : "checkbox"}
-                    name={id}
-                    value={o}
-                    id={`${id}-${i}`}
-                    checked={selected.includes(o)}
-                    required={f.type === "radio" && f.required}
-                    onChange={(e) => set(f.key, f.type === "radio" ? o : e.target.checked ? [...selected, o] : selected.filter((s) => s !== o))}
-                  />
-                  {o}
-                </label>
-              ))}
-              {error && (
-                <p id={`${id}-error`} className="text-xs text-danger">
-                  {error}
-                </p>
+              </FieldLegend>
+              {f.type === "radio" ? (
+                <RadioGroup name={id} value={selected[0] ?? ""} required={f.required} onValueChange={(o) => set(f.key, o)}>
+                  {f.options.map((o, i) => (
+                    <Field key={o} orientation="horizontal">
+                      <RadioGroupItem id={`${id}-${i}`} value={o} />
+                      <FieldLabel htmlFor={`${id}-${i}`} className="font-normal">
+                        {o}
+                      </FieldLabel>
+                    </Field>
+                  ))}
+                </RadioGroup>
+              ) : (
+                f.options.map((o, i) => (
+                  <Field key={o} orientation="horizontal">
+                    <Checkbox
+                      id={`${id}-${i}`}
+                      name={id}
+                      value={o}
+                      checked={selected.includes(o)}
+                      onCheckedChange={(checked) => set(f.key, checked === true ? [...selected, o] : selected.filter((s) => s !== o))}
+                    />
+                    <FieldLabel htmlFor={`${id}-${i}`} className="font-normal">
+                      {o}
+                    </FieldLabel>
+                  </Field>
+                ))
               )}
-            </fieldset>
+              {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
+            </FieldSet>
           );
         }
         const text = typeof value === "string" ? value : "";
         return (
-          <Field key={f.key} label={f.required ? `${f.label} *` : f.label} htmlFor={id} error={error}>
+          <FormField key={f.key} label={f.required ? `${f.label} *` : f.label} htmlFor={id} error={error}>
             {f.type === "select" ? (
-              <Select id={id} value={text} required={f.required} aria-invalid={Boolean(error)} onChange={(e) => set(f.key, e.target.value)}>
-                <option value="">Choose…</option>
-                {f.options.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
+              <Select value={text} required={f.required} onValueChange={(v) => set(f.key, v === NONE ? "" : v)}>
+                <SelectTrigger id={id} className="w-full" aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}>
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!f.required && <SelectItem value={NONE}>Choose…</SelectItem>}
+                  {f.options.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             ) : (
               <Input
@@ -136,11 +165,12 @@ export function PublicRoutingForm({ formId, name, description, fields, prefill, 
                 onChange={(e) => set(f.key, e.target.value)}
               />
             )}
-          </Field>
+          </FormField>
         );
       })}
       <div>
         <Button type="submit" disabled={pending}>
+          {pending && <Spinner />}
           {pending ? "Sending…" : "Continue"}
         </Button>
       </div>

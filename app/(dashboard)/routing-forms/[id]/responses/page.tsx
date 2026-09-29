@@ -1,7 +1,11 @@
+import { Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card } from "@/components/ui/primitives";
+import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getDb } from "@/db/client";
 import { describeAction } from "@/features/routing-forms/server/csv";
 import { listResponses, RoutingError } from "@/features/routing-forms/server/service";
@@ -9,7 +13,8 @@ import { requireUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Routing form responses" };
 
-const answerText = (value: string | string[] | number | undefined): string => (Array.isArray(value) ? value.join(", ") : value === undefined ? "" : String(value));
+const answerText = (value: string | string[] | number | undefined): string =>
+  Array.isArray(value) ? value.join(", ") : value === undefined ? "" : String(value);
 
 export default async function RoutingResponsesPage({ params }: PageProps<"/routing-forms/[id]/responses">) {
   const { id } = await params;
@@ -23,57 +28,77 @@ export default async function RoutingResponsesPage({ params }: PageProps<"/routi
   const ruleNumber = (ruleId: string) => form.rules.findIndex((r) => r.id === ruleId) + 1;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <Link href={`/routing-forms/${form.id}`} className="text-sm text-muted underline-offset-4 hover:underline">
-            ← {form.name}
-          </Link>
-          <h1 className="text-2xl font-semibold">Responses</h1>
-        </div>
-        <a href={`/api/routing-forms/${form.id}/responses`} download className="text-sm font-medium underline-offset-4 hover:underline">
-          Download CSV
-        </a>
+    <div className={PAGE_CLASS}>
+      <div className="flex flex-col gap-2">
+        <Link href={`/routing-forms/${form.id}`} className="w-fit text-sm text-muted-foreground underline-offset-4 hover:underline">
+          ← {form.name}
+        </Link>
+        <PageHeader
+          title="Responses"
+          description={`${rows.length} most recent response${rows.length === 1 ? "" : "s"} to ${form.name}.`}
+          actions={
+            <Button asChild variant="outline" className={`${HEADER_BUTTON_CLASS} bg-card`}>
+              <a href={`/api/routing-forms/${form.id}/responses`} download>
+                <Download aria-hidden />
+                Download CSV
+              </a>
+            </Button>
+          }
+        />
       </div>
       {rows.length === 0 ? (
-        <Card className="text-sm text-muted">No responses yet.</Card>
+        <Card className="gap-0 px-4 py-4 md:px-5 md:py-[18px]">
+          <p className="text-sm text-muted-foreground">No responses yet.</p>
+        </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-          <table className="w-full text-left text-sm">
-            <caption className="sr-only">Responses to {form.name}</caption>
-            <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="px-3 py-2 font-medium">Time</th>
+        <Card className="gap-0 py-0">
+          <Table>
+            <TableCaption className="sr-only">Responses to {form.name}</TableCaption>
+            <TableHeader className="bg-background">
+              <TableRow>
+                <TableHead scope="col" className="px-4 text-xs font-medium text-muted-foreground">
+                  Time
+                </TableHead>
                 {form.fields.map((f) => (
-                  <th key={f.key} scope="col" className="px-3 py-2 font-medium">
+                  <TableHead key={f.key} scope="col" className="px-4 text-xs font-medium text-muted-foreground">
                     {f.label || f.key}
-                  </th>
+                  </TableHead>
                 ))}
-                <th scope="col" className="px-3 py-2 font-medium">Matched</th>
-                <th scope="col" className="px-3 py-2 font-medium">Target</th>
-              </tr>
-            </thead>
-            <tbody>
+                <TableHead scope="col" className="px-4 text-xs font-medium text-muted-foreground">
+                  Matched
+                </TableHead>
+                <TableHead scope="col" className="px-4 text-xs font-medium text-muted-foreground">
+                  Target
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0 align-top">
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <time dateTime={r.createdAt.toISOString()}>{r.createdAt.toISOString().replace("T", " ").slice(0, 16)} UTC</time>
-                  </td>
+                <TableRow key={r.id} className="[&>td]:align-top">
+                  <TableCell className="px-4 text-xs font-medium text-muted-foreground">
+                    <time dateTime={r.createdAt.toISOString()}>
+                      {r.createdAt.toISOString().replace("T", " ").slice(0, 16)} UTC
+                    </time>
+                  </TableCell>
                   {form.fields.map((f) => (
-                    <td key={f.key} className="px-3 py-2">
+                    <TableCell key={f.key} className="px-3 whitespace-normal">
                       {answerText(r.answers[f.key])}
-                    </td>
+                    </TableCell>
                   ))}
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {r.matchedRuleId === null ? "Fallback" : ruleNumber(r.matchedRuleId) > 0 ? `Rule ${ruleNumber(r.matchedRuleId)}` : "Deleted rule"}
-                    <span className="block text-xs text-muted">{r.trace.length} evaluated</span>
-                  </td>
-                  <td className="px-3 py-2 break-all">{describeAction(r.action)}</td>
-                </tr>
+                  <TableCell className="px-4 text-xs font-medium text-muted-foreground">
+                    {r.matchedRuleId === null
+                      ? "Fallback"
+                      : ruleNumber(r.matchedRuleId) > 0
+                        ? `Rule ${ruleNumber(r.matchedRuleId)}`
+                        : "Deleted rule"}
+                    <span className="block text-xs text-muted-foreground">{r.trace.length} evaluated</span>
+                  </TableCell>
+                  <TableCell className="px-4 break-all whitespace-normal">{describeAction(r.action)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

@@ -1,3 +1,5 @@
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { SUBSCRIBABLE_TRIGGERS, TRIGGER_LABELS } from "../payload";
 
 export type TriggerCheckboxesProps = { idPrefix: string; selected: readonly string[]; error?: string };
@@ -6,24 +8,29 @@ export type TriggerCheckboxesProps = { idPrefix: string; selected: readonly stri
 export function TriggerCheckboxes({ idPrefix, selected, error }: TriggerCheckboxesProps) {
   const errorId = `${idPrefix}-triggers-error`;
   return (
-    <fieldset className="flex flex-col gap-1.5" aria-describedby={error ? errorId : undefined}>
-      <legend className="mb-1 text-sm font-medium">Triggers</legend>
+    <FieldSet className="gap-1.5" aria-describedby={error ? errorId : undefined}>
+      <FieldLegend variant="label">Triggers</FieldLegend>
       <div className="grid gap-1.5 sm:grid-cols-2">
         {SUBSCRIBABLE_TRIGGERS.map((trigger) => {
           const id = `${idPrefix}-${trigger}`;
+          const checked = selected.includes(trigger);
+          // Radix resets a checkbox to its first-mount value when React resets the form after the
+          // action; keying on the saved state remounts it so the reset lands on what was saved.
           return (
-            <label key={trigger} htmlFor={id} className="flex items-center gap-2 text-sm">
-              <input id={id} type="checkbox" name="triggers" value={trigger} defaultChecked={selected.includes(trigger)} className="size-4" />
-              {TRIGGER_LABELS[trigger]}
-            </label>
+            <Field key={`${trigger}-${checked}`} orientation="horizontal">
+              <Checkbox id={id} name="triggers" value={trigger} defaultChecked={checked} />
+              <FieldLabel htmlFor={id} className="font-normal">
+                {TRIGGER_LABELS[trigger]}
+              </FieldLabel>
+            </Field>
           );
         })}
       </div>
       {error && (
-        <p id={errorId} className="text-xs text-danger">
+        <FieldError id={errorId} className="text-xs">
           {error}
-        </p>
+        </FieldError>
       )}
-    </fieldset>
+    </FieldSet>
   );
 }

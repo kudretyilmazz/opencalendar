@@ -5,6 +5,7 @@ import {
   expectAccessible,
   firstSlotButton,
   guardBrowserErrors,
+  pickDate,
   pickFirstAvailableDay,
   signUpVerified,
 } from "./helpers";
@@ -183,7 +184,7 @@ test("schedules: date override removes a day from the booking page (AVL-002)", a
 
   await page.goto("/availability");
   await page.getByRole("link", { name: "Edit" }).first().click();
-  await page.getByLabel("Add an override for").fill(iso);
+  await pickDate(page, page.getByLabel("Add an override for"), iso);
   await page.getByRole("button", { name: "Add override" }).click();
   await page.getByLabel("Unavailable all day").check();
   await page.getByRole("button", { name: "Save schedule" }).click();
@@ -202,6 +203,7 @@ test("schedules: date override removes a day from the booking page (AVL-002)", a
 test("account deletion removes the public page (ADM-006)", async ({ page }) => {
   const { hostEmail, username } = await setupHost(page);
   await page.goto("/settings/profile");
+  await page.getByRole("button", { name: "Delete account…" }).click();
   await page.getByLabel(`Type ${hostEmail} to confirm`).fill(hostEmail);
   await page.getByRole("button", { name: "Delete my account" }).click();
   await expect(page).toHaveURL(/\/\?deleted=1$/);

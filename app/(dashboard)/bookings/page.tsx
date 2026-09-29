@@ -1,17 +1,27 @@
+import { CalendarDays, Clock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Alert, Button, Card, Input, Select } from "@/components/ui/primitives";
+import { HEADER_BUTTON_CLASS, PageHeader, PAGE_CLASS } from "@/components/page-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
-import { DecisionForm } from "@/features/bookings/components/decision-form";
-import { HostBookingActions } from "@/features/bookings/components/host-booking-actions";
-import { NoShowControls } from "@/features/bookings/components/no-show-controls";
-import { BOOKING_TABS, type BookingTab, listHostBookings } from "@/features/bookings/server/service";
+import { BookingFilters } from "@/features/bookings/components/booking-filters";
+import { HostBookingRow } from "@/features/bookings/components/host-booking-row";
+import { type BookingDay, groupByDay, listSummary, nextBookingId } from "@/features/bookings/host-list";
+import {
+  BOOKING_TABS,
+  type BookingTab,
+  countHostBookings,
+  type HostBooking,
+  listHostBookings,
+} from "@/features/bookings/server/service";
 import { listEventTypes } from "@/features/event-types/server/service";
-import { addDays, parseDate, wallToUtc } from "@/lib/availability/tz";
+import { addDays, localDateOf, parseDate, wallToUtc } from "@/lib/availability/tz";
 import { requireUser } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { requestTime } from "@/lib/clock";
-import { formatDateLong, formatTime } from "@/lib/format";
+import { type FormatPrefs, formatDateLong, formatWeekdayDate, timeZoneLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Bookings" };
 
@@ -20,6 +30,9 @@ const NOTICES: Record<string, string> = {
   reschedule_requested: "We asked the invitee to pick a new time.",
 };
 
+/** Radix Select items need a non-empty value; this one submits "all event types". */
+const ALL_EVENT_TYPES = "__all";
+
 const TAB_LABELS: Record<BookingTab, string> = {
   upcoming: "Upcoming",
   unconfirmed: "Unconfirmed",
@@ -27,14 +40,29 @@ const TAB_LABELS: Record<BookingTab, string> = {
   cancelled: "Cancelled",
 };
 
-function dateParam(value: unknown, tz: string, endOfDay = false): number | undefined {
+const RELATIVE_WORDS = { today: "Today", tomorrow: "Tomorrow", yesterday: "Yesterday" } as const;
+
+const countPill = "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold";
+
+/** A `yyyy-MM-dd` query value, or undefined when missing or malformed. */
+function isoParam(value: unknown): string | undefined {
   if (typeof value !== "string" || !value) return undefined;
   try {
-    const date = parseDate(value);
-    return wallToUtc(endOfDay ? addDays(date, 1) : date, 0, tz);
+    parseDate(value);
+    return value;
   } catch {
     return undefined;
   }
+}
+
+const dayStart = (value: string | undefined, tz: string, endOfDay = false) =>
+  value === undefined ? undefined : wallToUtc(endOfDay ? addDays(parseDate(value), 1) : parseDate(value), 0, tz);
+
+function dayLabel(group: BookingDay<HostBooking>, prefs: FormatPrefs, now: number): string {
+  const noon = wallToUtc(group.date, 12 * 60, prefs.timeZone);
+  const sameYear = group.date.year === localDateOf(now, prefs.timeZone).year;
+  const date = sameYear ? formatWeekdayDate(noon, prefs) : formatDateLong(noon, prefs);
+  return group.relative ? `${RELATIVE_WORDS[group.relative]} · ${date}` : date;
 }
 
 /** Host bookings dashboard (BKG-010). */
@@ -45,126 +73,144 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
   const tz = user.timeZone ?? "UTC";
   const prefs = { locale: user.locale ?? "en", timeZone: tz, hour12: user.timeFormat === 12 };
   const db = getDb();
-  const eventTypeId = typeof params.eventType === "string" && params.eventType ? params.eventType : undefined;
-  const [bookings, eventTypes] = await Promise.all([
-    listHostBookings(db, user.id, {
-      tab,
-      eventTypeId,
-      from: dateParam(params.from, tz),
-      to: dateParam(params.to, tz, true),
-      now: requestTime(),
-    }),
+  const now = requestTime();
+  const eventTypeId =
+    typeof params.eventType === "string" && params.eventType && params.eventType !== ALL_EVENT_TYPES
+      ? params.eventType
+      : undefined;
+  const from = isoParam(params.from);
+  const to = isoParam(params.to);
+  const filter = { eventTypeId, from: dayStart(from, tz), to: dayStart(to, tz, true), now };
+  const [bookings, counts, eventTypes] = await Promise.all([
+    listHostBookings(db, user.id, { ...filter, tab }),
+    countHostBookings(db, user.id, filter),
     listEventTypes(db, user.id),
   ]);
   const current = Object.fromEntries(
-    Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[0] !== "notice"),
+    Object.entries(params).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[0] !== "notice",
+    ),
   );
   const query = (next: Record<string, string>) => `/bookings?${new URLSearchParams({ ...current, ...next })}`;
+  const groups = groupByDay(bookings, (b) => b.startAt.getTime(), now, tz);
+  const nextId =
+    tab === "upcoming"
+      ? nextBookingId(
+          bookings.map((b) => ({ ...b, startAt: b.startAt.getTime(), endAt: b.endAt.getTime() })),
+          now,
+        )
+      : null;
+  const tabCount: Partial<Record<BookingTab, { n: number; className: string }>> = {
+    upcoming: { n: counts.upcoming, className: "bg-muted text-foreground" },
+    unconfirmed: { n: counts.unconfirmed, className: "bg-warning text-warning-foreground" },
+  };
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Bookings</h1>
-        <p className="text-sm text-muted">Times shown in {tz.replaceAll("_", " ")}.</p>
-      </div>
-      {typeof params.notice === "string" && NOTICES[params.notice] && <Alert tone="success">{NOTICES[params.notice]}</Alert>}
-      <nav aria-label="Booking status" className="flex gap-1 border-b border-border">
-        {BOOKING_TABS.map((t) => (
-          <Link
-            key={t}
-            href={query({ tab: t })}
-            aria-current={t === tab ? "page" : undefined}
-            className={cn("-mb-px border-b-2 px-3 py-2 text-sm", t === tab ? "border-foreground font-medium" : "border-transparent text-muted")}
-          >
-            {TAB_LABELS[t]}
-          </Link>
-        ))}
+    <div className={PAGE_CLASS}>
+      <PageHeader
+        title="Bookings"
+        description={`Times shown in ${timeZoneLabel(tz, now, prefs.locale)}.`}
+        actions={
+          <Button asChild variant="outline" className={cn(HEADER_BUTTON_CLASS, "bg-card")}>
+            <Link href="/availability/troubleshoot">
+              <CalendarDays aria-hidden />
+              Troubleshoot availability
+            </Link>
+          </Button>
+        }
+      />
+      {typeof params.notice === "string" && NOTICES[params.notice] && (
+        <Alert variant="success">
+          <AlertDescription>{NOTICES[params.notice]}</AlertDescription>
+        </Alert>
+      )}
+      <nav
+        aria-label="Booking status"
+        className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 md:mx-0 md:px-0"
+      >
+        {BOOKING_TABS.map((t) => {
+          const count = tabCount[t];
+          return (
+            <Link
+              key={t}
+              href={query({ tab: t })}
+              aria-current={t === tab ? "page" : undefined}
+              className={cn(
+                "-mb-px flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm md:min-h-0",
+                t === tab
+                  ? "border-foreground font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {TAB_LABELS[t]}
+              {count && count.n > 0 && (
+                <span className={cn(countPill, count.className)}>
+                  {count.n}
+                  <span className="sr-only">{t === "unconfirmed" ? " awaiting confirmation" : " bookings"}</span>
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
-      <form className="flex flex-wrap items-end gap-3" action="/bookings">
-        <input type="hidden" name="tab" value={tab} />
-        <label className="flex flex-col gap-1 text-sm">
-          Event type
-          <Select name="eventType" defaultValue={eventTypeId ?? ""} className="w-56">
-            <option value="">All event types</option>
-            {eventTypes.map((et) => (
-              <option key={et.id} value={et.id}>
-                {et.title}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          From
-          <Input type="date" name="from" defaultValue={typeof params.from === "string" ? params.from : ""} className="w-44" />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          To
-          <Input type="date" name="to" defaultValue={typeof params.to === "string" ? params.to : ""} className="w-44" />
-        </label>
-        <Button type="submit" variant="secondary">
-          Filter
-        </Button>
-      </form>
+      <BookingFilters
+        key={`${eventTypeId ?? ""}|${from ?? ""}|${to ?? ""}`}
+        values={{ tab, eventType: eventTypeId, from, to }}
+        eventTypes={eventTypes.map((et) => ({ id: et.id, title: et.title }))}
+        weekStartsOn={user.weekStart ?? undefined}
+      >
+        {listSummary(bookings.map((b) => ({ startAt: b.startAt.getTime(), endAt: b.endAt.getTime() })))}
+      </BookingFilters>
+      {tab === "upcoming" && counts.unconfirmed > 0 && (
+        <Link
+          href={query({ tab: "unconfirmed" })}
+          className="flex items-center gap-3 rounded-[12px] bg-warning px-4 py-3.5 text-warning-foreground hover:opacity-90 md:px-[18px]"
+        >
+          <Clock className="size-[18px] shrink-0" aria-hidden />
+          <span className="grow text-sm font-medium">
+            {counts.unconfirmed === 1 ? "1 request is" : `${counts.unconfirmed} requests are`} waiting for your
+            decision. Invitees hear back as soon as you answer.
+          </span>
+          <span className="shrink-0 text-sm font-semibold">
+            Review<span aria-hidden> →</span>
+          </span>
+        </Link>
+      )}
       {bookings.length === 0 ? (
-        <Card className="text-sm text-muted">No {TAB_LABELS[tab].toLowerCase()} bookings.</Card>
+        <Card className="gap-0 px-5 py-8 text-sm text-muted-foreground">
+          No {TAB_LABELS[tab].toLowerCase()} bookings.
+        </Card>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {bookings.map((b) => {
-            const primary = b.attendees.find((a) => !a.isGuest) ?? b.attendees[0];
-            const guests = b.attendees.filter((a) => a.isGuest);
-            return (
-              <li key={b.id}>
-                <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex flex-col gap-1 text-sm">
-                    <p className="font-medium">
-                      {formatDateLong(b.startAt.getTime(), prefs)} · {formatTime(b.startAt.getTime(), prefs)} –{" "}
-                      {formatTime(b.endAt.getTime(), prefs)}
-                    </p>
-                    <p>
-                      {b.eventTitle} with {primary?.name} <span className="text-muted">({primary?.email})</span>
-                    </p>
-                    {guests.length > 0 && <p className="text-muted">Guests: {guests.map((g) => g.email).join(", ")}</p>}
-                    {b.notes && <p className="text-muted">“{b.notes}”</p>}
-                    {Object.entries(b.responses).length > 0 && (
-                      <p className="text-muted">
-                        {Object.entries(b.responses)
-                          .map(([k, v]) => `${b.questionLabels[k] ?? k}: ${Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "Yes" : "No") : v}`)
-                          .join(" · ")}
-                      </p>
-                    )}
-                    {b.recurringSeriesId && <p className="text-muted">Part of a recurring series</p>}
-                    {b.status === "rejected" && <p className="text-danger">Rejected{b.rejectionReason ? `: ${b.rejectionReason}` : ""}</p>}
-                    {b.locationValue && <p className="break-all text-muted">Location: {b.locationValue}</p>}
-                    {b.syncFailed && (
-                      <p className="text-danger">
-                        Calendar sync failed for this booking. <Link href="/settings/calendars" className="underline">Check your calendars</Link>.
-                      </p>
-                    )}
-                    {b.status === "cancelled" && (
-                      <p className="text-danger">
-                        {b.rescheduled ? "Rescheduled" : `Cancelled by ${b.cancelledBy ?? "system"}`}
-                        {b.cancellationReason ? `: ${b.cancellationReason}` : ""}
-                      </p>
-                    )}
-                  </div>
-                  {tab === "upcoming" && primary && <HostBookingActions bookingId={b.id} attendeeName={primary.name} />}
-                  {tab === "unconfirmed" && (
-                    <div className="sm:w-80">
-                      <DecisionForm bookingId={b.id} />
-                    </div>
-                  )}
-                  {tab === "past" && b.status === "accepted" && (
-                    <NoShowControls
-                      bookingId={b.id}
-                      host={{ noShow: b.hostNoShow }}
-                      attendees={b.attendees.map((a) => ({ id: a.id, label: a.isGuest ? a.email : a.name, noShow: a.noShow }))}
-                    />
-                  )}
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
+        <section
+          aria-label={`${TAB_LABELS[tab]} bookings`}
+          className="overflow-hidden rounded-[12px] border border-border bg-card"
+        >
+          {groups.map((group, i) => (
+            <div key={`${group.date.year}-${group.date.month}-${group.date.day}-${i}`}>
+              <h2
+                className={cn(
+                  "border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground md:px-5",
+                  i > 0 && "border-t",
+                )}
+              >
+                {dayLabel(group, prefs, now)}
+              </h2>
+              <ul>
+                {group.rows.map((b) => (
+                  <HostBookingRow
+                    key={b.id}
+                    b={b}
+                    tab={tab}
+                    prefs={prefs}
+                    now={now}
+                    isNext={b.id === nextId}
+                    defaultOpen={b.id === bookings[0].id}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
       )}
     </div>
   );

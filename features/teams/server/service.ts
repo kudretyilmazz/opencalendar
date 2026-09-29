@@ -168,12 +168,20 @@ export async function cancelInvitation(db: Database, actorId: string, teamId: st
 
 type Invitee = { id: string; email: string; emailVerified: boolean };
 
-/** Open invitations addressed to the signed-in user's email. */
+/** Open invitations addressed to the signed-in user's email, with who sent them (if still around). */
 export async function listMyInvitations(db: Database, invitee: Invitee, now: number) {
   return db
-    .select({ id: teamInvitation.id, role: teamInvitation.role, teamId: team.id, teamName: team.name, expiresAt: teamInvitation.expiresAt })
+    .select({
+      id: teamInvitation.id,
+      role: teamInvitation.role,
+      teamId: team.id,
+      teamName: team.name,
+      expiresAt: teamInvitation.expiresAt,
+      inviterName: user.name,
+    })
     .from(teamInvitation)
     .innerJoin(team, eq(team.id, teamInvitation.teamId))
+    .leftJoin(user, eq(user.id, teamInvitation.invitedBy))
     .where(and(eq(teamInvitation.email, invitee.email.toLowerCase()), gt(teamInvitation.expiresAt, new Date(now))))
     .orderBy(asc(team.name));
 }

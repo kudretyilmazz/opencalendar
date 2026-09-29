@@ -2,7 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { useTimeZones } from "@/lib/use-time-zones";
-import { Alert, Button, Field, Input, Select } from "@/components/ui/primitives";
+import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import { type ActionState, idle } from "@/lib/actions";
 import {
   type EventTypeFormInput,
@@ -15,6 +24,7 @@ import {
 } from "../schemas";
 import { AdvancedSettings } from "./advanced-settings";
 import { QuestionsEditor } from "./questions-editor";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 export type CalendarOption = { id: string; name: string; account: string; readOnly: boolean };
 export type CalendarSettings = { conflictCalendarIds: string[]; destinationCalendarId: string | null };
@@ -38,6 +48,10 @@ function splitNotice(minutes: number): { value: number; unit: NoticeUnit } {
 }
 
 const num = (value: string) => (value === "" ? 0 : Number(value));
+
+/** Radix SelectItem values must be non-empty; this stands in for "use the default". */
+const NONE = "__none";
+const fromSelect = (value: string) => (value === NONE ? null : value);
 
 export function EventTypeFormView(props: {
   initial: EventTypeFormInput;
@@ -73,11 +87,11 @@ export function EventTypeFormView(props: {
     });
 
   return (
-    <form action={action} className="flex flex-col gap-8">
+    <form action={action} onSubmit={submitWithoutReset(action)} className="flex flex-col gap-8">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Field label="Title" htmlFor="title" error={errors.title}>
+        <FormField label="Title" htmlFor="title" error={errors.title}>
           <Input
             id="title"
             value={form.title}
@@ -85,8 +99,8 @@ export function EventTypeFormView(props: {
             maxLength={100}
             onChange={(e) => set({ title: e.target.value, ...(slugTouched ? {} : { slug: slugify(e.target.value) }) })}
           />
-        </Field>
-        <Field label="URL" htmlFor="slug" error={errors.slug} hint={`${props.profileUrl}/${form.slug || "…"}`}>
+        </FormField>
+        <FormField label="URL" htmlFor="slug" error={errors.slug} hint={`${props.profileUrl}/${form.slug || "…"}`}>
           <Input
             id="slug"
             value={form.slug}
@@ -96,29 +110,29 @@ export function EventTypeFormView(props: {
               set({ slug: e.target.value.toLowerCase() });
             }}
           />
-        </Field>
+        </FormField>
         <div className="sm:col-span-2">
-          <Field
+          <FormField
             label="Description"
             htmlFor="description"
             error={errors.description}
             hint="Shown on your booking page. Supports Markdown: **bold**, *italic*, `code`, [links](https://…), lists (- or 1.) and # headings."
           >
-            <textarea
+            <Textarea
               id="description"
-              className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              className="min-h-24"
               value={form.description ?? ""}
               maxLength={5000}
               onChange={(e) => set({ description: e.target.value || null })}
             />
-          </Field>
+          </FormField>
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Duration</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Default duration (minutes)" htmlFor="duration" error={errors.durationMinutes}>
+          <FormField label="Default duration (minutes)" htmlFor="duration" error={errors.durationMinutes}>
             <Input
               id="duration"
               type="number"
@@ -128,8 +142,8 @@ export function EventTypeFormView(props: {
               value={form.durationMinutes}
               onChange={(e) => set({ durationMinutes: num(e.target.value) })}
             />
-          </Field>
-          <Field
+          </FormField>
+          <FormField
             label="Start times every (minutes)"
             htmlFor="interval"
             error={errors.slotIntervalMinutes}
@@ -144,25 +158,31 @@ export function EventTypeFormView(props: {
               value={form.slotIntervalMinutes ?? ""}
               onChange={(e) => set({ slotIntervalMinutes: e.target.value === "" ? null : num(e.target.value) })}
             />
-          </Field>
+          </FormField>
         </div>
-        <fieldset>
-          <legend className="text-sm font-medium">Also let bookers choose</legend>
-          <div className="mt-2 flex flex-wrap gap-3">
+        <FieldSet className="gap-2">
+          <FieldLegend variant="label">Also let bookers choose</FieldLegend>
+          <div className="flex flex-wrap gap-x-4 gap-y-3">
             {DURATION_CHOICES.filter((d) => d !== form.durationMinutes).map((d) => (
-              <label key={d} className="flex items-center gap-1.5 text-sm">
-                <input type="checkbox" checked={form.extraDurations.includes(d)} onChange={() => toggleExtra(d)} />
-                {d} min
-              </label>
+              <Field key={d} orientation="horizontal" className="w-auto">
+                <Checkbox
+                  id={`extra-${d}`}
+                  checked={form.extraDurations.includes(d)}
+                  onCheckedChange={() => toggleExtra(d)}
+                />
+                <FieldLabel htmlFor={`extra-${d}`} className="font-normal">
+                  {d} min
+                </FieldLabel>
+              </Field>
             ))}
           </div>
-        </fieldset>
+        </FieldSet>
       </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Limits</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Buffer before (minutes)" htmlFor="bufferBefore" error={errors.bufferBeforeMinutes}>
+          <FormField label="Buffer before (minutes)" htmlFor="bufferBefore" error={errors.bufferBeforeMinutes}>
             <Input
               id="bufferBefore"
               type="number"
@@ -172,8 +192,8 @@ export function EventTypeFormView(props: {
               value={form.bufferBeforeMinutes}
               onChange={(e) => set({ bufferBeforeMinutes: num(e.target.value) })}
             />
-          </Field>
-          <Field label="Buffer after (minutes)" htmlFor="bufferAfter" error={errors.bufferAfterMinutes}>
+          </FormField>
+          <FormField label="Buffer after (minutes)" htmlFor="bufferAfter" error={errors.bufferAfterMinutes}>
             <Input
               id="bufferAfter"
               type="number"
@@ -183,8 +203,8 @@ export function EventTypeFormView(props: {
               value={form.bufferAfterMinutes}
               onChange={(e) => set({ bufferAfterMinutes: num(e.target.value) })}
             />
-          </Field>
-          <Field label="Minimum notice" htmlFor="notice" error={errors.minNoticeMinutes}>
+          </FormField>
+          <FormField label="Minimum notice" htmlFor="notice" error={errors.minNoticeMinutes}>
             <div className="flex gap-2">
               <Input
                 id="notice"
@@ -193,38 +213,43 @@ export function EventTypeFormView(props: {
                 value={notice.value}
                 onChange={(e) => setNotice({ ...notice, value: num(e.target.value) })}
               />
-              <Select
-                aria-label="Minimum notice unit"
-                value={notice.unit}
-                onChange={(e) => setNotice({ ...notice, unit: e.target.value as NoticeUnit })}
-              >
-                <option value="minutes">minutes</option>
-                <option value="hours">hours</option>
-                <option value="days">days</option>
+              <Select value={notice.unit} onValueChange={(unit) => setNotice({ ...notice, unit: unit as NoticeUnit })}>
+                <SelectTrigger aria-label="Minimum notice unit" className="w-28 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">minutes</SelectItem>
+                  <SelectItem value="hours">hours</SelectItem>
+                  <SelectItem value="days">days</SelectItem>
+                </SelectContent>
               </Select>
             </div>
-          </Field>
+          </FormField>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Bookable" htmlFor="horizonType" error={errors.horizonType}>
+          <FormField label="Bookable" htmlFor="horizonType" error={errors.horizonType}>
             <Select
-              id="horizonType"
               value={form.horizonType}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 set({
-                  horizonType: e.target.value as EventTypeFormInput["horizonType"],
+                  horizonType: value as EventTypeFormInput["horizonType"],
                   horizonDays: form.horizonDays ?? 60,
                 })
               }
             >
-              <option value="rolling_days">Up to N calendar days ahead</option>
-              <option value="rolling_business_days">Up to N business days ahead</option>
-              <option value="date_range">Within a date range</option>
-              <option value="unlimited">Indefinitely</option>
+              <SelectTrigger id="horizonType" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rolling_days">Up to N calendar days ahead</SelectItem>
+                <SelectItem value="rolling_business_days">Up to N business days ahead</SelectItem>
+                <SelectItem value="date_range">Within a date range</SelectItem>
+                <SelectItem value="unlimited">Indefinitely</SelectItem>
+              </SelectContent>
             </Select>
-          </Field>
+          </FormField>
           {(form.horizonType === "rolling_days" || form.horizonType === "rolling_business_days") && (
-            <Field label="Days" htmlFor="horizonDays" error={errors.horizonDays}>
+            <FormField label="Days" htmlFor="horizonDays" error={errors.horizonDays}>
               <Input
                 id="horizonDays"
                 type="number"
@@ -233,26 +258,28 @@ export function EventTypeFormView(props: {
                 value={form.horizonDays ?? ""}
                 onChange={(e) => set({ horizonDays: e.target.value === "" ? null : num(e.target.value) })}
               />
-            </Field>
+            </FormField>
           )}
           {form.horizonType === "date_range" && (
             <>
-              <Field label="From" htmlFor="rangeStart" error={errors.rangeStart}>
-                <Input
+              <FormField label="From" htmlFor="rangeStart" error={errors.rangeStart}>
+                <DatePicker
                   id="rangeStart"
-                  type="date"
                   value={form.rangeStart ?? ""}
-                  onChange={(e) => set({ rangeStart: e.target.value || null })}
+                  onValueChange={(value) => set({ rangeStart: value || null })}
+                  max={form.rangeEnd ?? undefined}
+                  aria-invalid={errors.rangeStart ? true : undefined}
                 />
-              </Field>
-              <Field label="To" htmlFor="rangeEnd" error={errors.rangeEnd}>
-                <Input
+              </FormField>
+              <FormField label="To" htmlFor="rangeEnd" error={errors.rangeEnd}>
+                <DatePicker
                   id="rangeEnd"
-                  type="date"
                   value={form.rangeEnd ?? ""}
-                  onChange={(e) => set({ rangeEnd: e.target.value || null })}
+                  onValueChange={(value) => set({ rangeEnd: value || null })}
+                  min={form.rangeStart ?? undefined}
+                  aria-invalid={errors.rangeEnd ? true : undefined}
                 />
-              </Field>
+              </FormField>
             </>
           )}
         </div>
@@ -260,23 +287,24 @@ export function EventTypeFormView(props: {
 
       <section className="grid gap-4 sm:grid-cols-2">
         {!props.team && (
-          <Field label="Availability schedule" htmlFor="scheduleId" error={errors.scheduleId}>
-            <Select
-              id="scheduleId"
-              value={form.scheduleId ?? ""}
-              onChange={(e) => set({ scheduleId: e.target.value || null })}
-            >
-              <option value="">Default schedule</option>
-              {props.schedules.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.isDefault ? " (default)" : ""}
-                </option>
-              ))}
+          <FormField label="Availability schedule" htmlFor="scheduleId" error={errors.scheduleId}>
+            <Select value={form.scheduleId ?? NONE} onValueChange={(value) => set({ scheduleId: fromSelect(value) })}>
+              <SelectTrigger id="scheduleId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>Default schedule</SelectItem>
+                {props.schedules.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                    {s.isDefault ? " (default)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
-          </Field>
+          </FormField>
         )}
-        <Field label="Additional guests allowed" htmlFor="maxGuests" error={errors.maxGuests}>
+        <FormField label="Additional guests allowed" htmlFor="maxGuests" error={errors.maxGuests}>
           <Input
             id="maxGuests"
             type="number"
@@ -285,17 +313,25 @@ export function EventTypeFormView(props: {
             value={form.maxGuests}
             onChange={(e) => set({ maxGuests: num(e.target.value) })}
           />
+        </FormField>
+        <Field orientation="horizontal" className="sm:col-span-2">
+          <Checkbox id="hidden" checked={form.hidden} onCheckedChange={(v) => set({ hidden: v === true })} />
+          <FieldLabel htmlFor="hidden" className="font-normal">
+            Hide from my profile page (still bookable by direct link)
+          </FieldLabel>
         </Field>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input type="checkbox" checked={form.hidden} onChange={(e) => set({ hidden: e.target.checked })} />
-          Hide from my profile page (still bookable by direct link)
-        </label>
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">Locations</h2>
-        <p className="text-sm text-muted">Add one or more. With several, the invitee chooses when booking.</p>
-        {errors.locations && <Alert tone="error">{errors.locations}</Alert>}
+        <p className="text-sm text-muted-foreground">
+          Add one or more. With several, the invitee chooses when booking.
+        </p>
+        {errors.locations && (
+          <Alert variant="destructive">
+            <AlertDescription>{errors.locations}</AlertDescription>
+          </Alert>
+        )}
         <ul className="flex flex-col gap-2">
           {form.locations.map((loc, i) => {
             const needs = LOCATION_NEEDS_VALUE[loc.kind];
@@ -307,14 +343,14 @@ export function EventTypeFormView(props: {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-8"
+                    size="sm"
                     onClick={() => set({ locations: form.locations.filter((_, j) => j !== i) })}
                   >
                     Remove
                   </Button>
                 </div>
                 {needs && (
-                  <Field
+                  <FormField
                     label={needs === "address" ? "Address" : needs === "phone" ? "Your phone number" : "Meeting link"}
                     htmlFor={`location-${loc.kind}`}
                     error={errors[`locations.${i}.value`]}
@@ -325,40 +361,40 @@ export function EventTypeFormView(props: {
                       value={loc.value ?? ""}
                       onChange={(e) => setLocation(i, e.target.value || null)}
                     />
-                  </Field>
+                  </FormField>
                 )}
                 {loc.kind === "jitsi" && (
-                  <p className="text-xs text-muted">A unique Jitsi room is created for every booking.</p>
+                  <p className="text-xs text-muted-foreground">A unique Jitsi room is created for every booking.</p>
                 )}
                 {loc.kind === "phone_attendee" && (
-                  <p className="text-xs text-muted">Invitees enter their phone number when booking.</p>
+                  <p className="text-xs text-muted-foreground">Invitees enter their phone number when booking.</p>
                 )}
                 {requirement && !props.connectedProviders.includes(requirement.provider) && (
-                  <p className="text-xs text-danger">{requirement.label} to generate links automatically.</p>
+                  <p className="text-xs text-destructive">{requirement.label} to generate links automatically.</p>
                 )}
               </li>
             );
           })}
         </ul>
         <div className="flex items-end gap-2">
-          <Field label="Add a location" htmlFor="newLocation">
-            <Select
-              id="newLocation"
-              value={newLocation}
-              onChange={(e) => setNewLocation(e.target.value as LocationKind | "")}
-              className="w-72"
-            >
-              <option value="">Choose…</option>
-              {LOCATION_KINDS.filter((k) => !usedKinds.has(k)).map((k) => (
-                <option key={k} value={k}>
-                  {LOCATION_LABELS[k]}
-                </option>
-              ))}
+          <FormField label="Add a location" htmlFor="newLocation">
+            {/* "" (Radix's empty value) shows the placeholder again after "Add". */}
+            <Select value={newLocation} onValueChange={(value) => setNewLocation(value as LocationKind)}>
+              <SelectTrigger id="newLocation" className="w-72">
+                <SelectValue placeholder="Choose…" />
+              </SelectTrigger>
+              <SelectContent>
+                {LOCATION_KINDS.filter((k) => !usedKinds.has(k)).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {LOCATION_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
-          </Field>
+          </FormField>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             disabled={!newLocation}
             onClick={() => {
               if (!newLocation) return;
@@ -382,50 +418,64 @@ export function EventTypeFormView(props: {
       {props.calendars.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="font-medium">Calendars</h2>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm">
+          <FieldSet className="gap-2">
+            <FieldLegend variant="label" className="font-normal">
               Check these calendars for conflicts (none selected = your account defaults)
-            </legend>
+            </FieldLegend>
             {props.calendars.map((cal) => (
-              <label key={cal.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <Field key={cal.id} orientation="horizontal">
+                <Checkbox
+                  id={`conflict-${cal.id}`}
                   checked={calendarSettings.conflictCalendarIds.includes(cal.id)}
-                  onChange={(e) =>
+                  onCheckedChange={(v) =>
                     setCalendarSettings((c) => ({
                       ...c,
-                      conflictCalendarIds: e.target.checked
-                        ? [...c.conflictCalendarIds, cal.id]
-                        : c.conflictCalendarIds.filter((x) => x !== cal.id),
+                      conflictCalendarIds:
+                        v === true
+                          ? [...c.conflictCalendarIds, cal.id]
+                          : c.conflictCalendarIds.filter((x) => x !== cal.id),
                     }))
                   }
                 />
-                {cal.name} <span className="text-muted">({cal.account})</span>
-              </label>
+                <FieldLabel htmlFor={`conflict-${cal.id}`} className="font-normal">
+                  {cal.name} <span className="text-muted-foreground">({cal.account})</span>
+                </FieldLabel>
+              </Field>
             ))}
-          </fieldset>
-          <Field label="Add new bookings to" htmlFor="destinationCalendarId" error={errors.destinationCalendarId}>
+          </FieldSet>
+          <FormField label="Add new bookings to" htmlFor="destinationCalendarId" error={errors.destinationCalendarId}>
             <Select
-              id="destinationCalendarId"
-              value={calendarSettings.destinationCalendarId ?? ""}
-              onChange={(e) => setCalendarSettings((c) => ({ ...c, destinationCalendarId: e.target.value || null }))}
+              value={calendarSettings.destinationCalendarId ?? NONE}
+              onValueChange={(value) =>
+                setCalendarSettings((c) => ({ ...c, destinationCalendarId: fromSelect(value) }))
+              }
             >
-              <option value="">My default destination calendar</option>
-              {props.calendars
-                .filter((cal) => !cal.readOnly)
-                .map((cal) => (
-                  <option key={cal.id} value={cal.id}>
-                    {cal.name} ({cal.account})
-                  </option>
-                ))}
+              <SelectTrigger id="destinationCalendarId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>My default destination calendar</SelectItem>
+                {props.calendars
+                  .filter((cal) => !cal.readOnly)
+                  .map((cal) => (
+                    <SelectItem key={cal.id} value={cal.id}>
+                      {cal.name} ({cal.account})
+                    </SelectItem>
+                  ))}
+              </SelectContent>
             </Select>
-          </Field>
+          </FormField>
         </section>
       )}
 
       <div className="flex flex-col gap-3">
-        {state.message && <Alert tone={state.status === "success" ? "success" : "error"}>{state.message}</Alert>}
+        {state.message && (
+          <Alert variant={state.status === "success" ? "success" : "destructive"}>
+            <AlertDescription>{state.message}</AlertDescription>
+          </Alert>
+        )}
         <Button type="submit" disabled={pending} className="self-start">
+          {pending && <Spinner />}
           {pending ? "Saving…" : props.isNew ? "Create event type" : "Save changes"}
         </Button>
       </div>

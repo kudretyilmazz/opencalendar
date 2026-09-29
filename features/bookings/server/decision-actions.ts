@@ -86,6 +86,7 @@ export async function decideBookingAction(_prev: ActionState, formData: FormData
     throw error;
   }
   revalidatePath("/bookings");
+  revalidatePath("/dashboard");
   return { status: "success", message: parsed.data.decision === "accept" ? "Booking accepted. The invitee has been notified." : "Booking rejected. The invitee has been notified." };
 }
 
