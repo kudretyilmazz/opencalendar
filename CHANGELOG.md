@@ -26,6 +26,16 @@ image and restart"; migrations run automatically (see
 - Destructive actions (delete schedule, team, event type, routing form, webhook, account; disconnect
   a calendar) ask for confirmation first.
 
+### Added
+- Embed builder: an **Embed** action on event types, the booking page, teams, team event types and
+  routing forms opens a builder with inline, floating button, popup and email tabs, options (theme,
+  brand color, layout, hide details, prefill, button), a live preview and copy-ready HTML, iframe or
+  link code.
+- Email embed: pick free times and paste them into an email (Gmail/Outlook/Apple Mail-safe HTML or
+  plain text); each time opens the booking form on that time.
+- Week and column layouts for booking pages and embeds, with a layout switcher for bookers, and
+  `slot=` / `month=` booking link parameters.
+
 ### Fixed
 - Saving the schedule, event type, routing form, workflow or team forms no longer snaps checkboxes,
   switches and selects back to their first value on screen.

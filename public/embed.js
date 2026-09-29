@@ -7,6 +7,7 @@
   var VERSION = 1;
   var EVENTS = ["ready", "dateSelected", "slotSelected", "bookingSuccessful", "bookingFailed", "dimensionsChanged"];
   var Z = 2147483000;
+  var LAYOUTS = ["month", "week", "column"];
   var script = d.currentScript;
   // The instance origin comes from this script's own URL; only its messages are trusted (EMB-003).
   var origin = new URL(script && script.src ? script.src : w.location.href).origin;
@@ -36,7 +37,10 @@
     });
   }
 
-  /** Allowed shapes: user, user/event, a+b/event (group), team/slug[/event], forms/id. */
+  /**
+   * Allowed shapes: user, user/event, a+b/event (group), team/slug[/event], forms/id. Config keys
+   * become query parameters (date, month, duration, slot, layout, prefill answers, theme…).
+   */
   function buildUrl(calLink, config) {
     var path = String(calLink || "").replace(/^\/+|\/+$/g, "");
     if (!/^(team\/[\w-]+(\/[\w-]+)?|forms\/[\w-]+|[\w-]+(\+[\w-]+)*(\/[\w-]+)?)$/.test(path))
@@ -63,6 +67,13 @@
         });
       } else if (key === "brand" && value) {
         set(key, String(value).replace(/^#/, ""));
+      } else if (key === "layout" && value) {
+        if (LAYOUTS.indexOf(value) >= 0) set(key, value);
+        else report(new Error('OpenCalendar: layout must be "month", "week" or "column"'));
+      } else if (key === "slot" && value) {
+        // A Date or epoch milliseconds becomes the ISO 8601 UTC start the page expects.
+        var ms = Object.prototype.toString.call(value) === "[object Date]" ? value.getTime() : typeof value === "number" ? value : NaN;
+        set(key, isFinite(ms) ? new Date(ms).toISOString() : value);
       } else if (key !== "embed" && key !== "title") {
         set(key, value);
       }

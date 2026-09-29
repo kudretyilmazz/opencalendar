@@ -8,7 +8,19 @@ Place your OpenCalendar booking page on your own website inline, as a popup, or 
 
 The embed works with your profile, an event type, a team page or team event type, a dynamic group link, or a routing form. Visitors can see your availability and book you without leaving your site.
 
-### How to embed
+### Get the code from the embed builder
+
+The easiest way: open **Event types**, choose **Embed** in an event type's **…** menu (or **Embed** on your booking page strip, a team page, a team event type or a routing form's **Share** card).
+
+The builder has a tab per embed type — **Inline**, **Floating button**, **Popup** and, for a single event type, **Email**. Pick the theme, brand color, layout (month, week or column), whether to hide the event details and optional prefill values; the live preview shows the real embed on a sample page. Then **Copy code** and paste it into your site. For sites that don't allow scripts, switch the inline code to **iframe** or a plain **Link**.
+
+### Embed times in an email
+
+In the builder's **Email** tab, pick up to 10 free times (browse the weeks, choose the time zone and 12/24-hour clock), add an optional message and click **Copy for email**, then paste into Gmail, Outlook or Apple Mail. Each time is a button that opens your booking page with that time already chosen; if someone else booked it in the meantime, the page opens that day and asks to pick another time. **Copy HTML** (or **Show HTML**) gives the raw source for email tools that take HTML.
+
+The email is a snapshot: it lists the times free when you copied it.
+
+### How to embed by hand
 
 Add the embed script to your website HTML and a placeholder where the booking page should appear. Replace `https://cal.example.com` with your OpenCalendar address and `ada/intro` with `{username}/{event-slug}`:
 
@@ -34,7 +46,11 @@ Add a `data-opencalendar-config` attribute with JSON (or pass `config` in JavaSc
 <div data-opencalendar-inline="ada/intro" data-opencalendar-config='{"theme":"dark","brand":"#0f766e"}'></div>
 ```
 
-Options include `theme` (`light`, `dark` or `auto`), `brand` (a hex color), `hideDetails` (hides the event details column), prefill values such as `name`, `email`, `notes`, `duration`, `date` and booking question answers, and `utm_*` parameters.
+Options include `theme` (`light`, `dark` or `auto`), `brand` (a hex color), `layout` (`month`, `week` or `column`), `hideDetails` (hides the event details column), prefill values such as `name`, `email`, `notes`, `duration`, `date` and booking question answers, and `utm_*` parameters.
+
+### Booking links
+
+Any booking link accepts `?layout=week` (or `month`, `column`), `?date=2026-10-02`, `?month=2026-10`, `?duration=45` and `?slot=` with an exact start time in UTC (for example `2026-10-02T07:00:00.000Z`), which opens the booking form on that time. Visitors can also switch between the month, week and column layouts themselves; on phones the page always uses the column layout.
 
 Your website can also listen for events from the booking page, such as `bookingSuccessful`, with `OpenCalendar.on("bookingSuccessful", handler)`.
 

@@ -3,6 +3,9 @@
  * host page look like `{ source: "opencalendar", version: 1, type, data }`. The loader script
  * (public/embed.js) only accepts messages whose origin is this instance's origin.
  */
+import type { BookingLayout } from "@/features/embed/target";
+import { parseLayout } from "./booking-link";
+
 export const EMBED_SOURCE = "opencalendar";
 export const EMBED_VERSION = 1;
 
@@ -13,7 +16,7 @@ export type EmbedMessage = { source: typeof EMBED_SOURCE; version: typeof EMBED_
 
 /** Query parameters the booking page understands in embed mode (EMB-004). */
 export const EMBED_PARAMS = ["embed", "theme", "brand", "hideDetails", "layout"] as const;
-export type EmbedOptions = { theme: "light" | "dark" | "auto"; brand: string | null; hideDetails: boolean; layout: "month" | "column" };
+export type EmbedOptions = { theme: "light" | "dark" | "auto"; brand: string | null; hideDetails: boolean; layout: BookingLayout };
 
 export function parseEmbedOptions(params: Record<string, string | string[] | undefined>): EmbedOptions | null {
   const one = (k: string) => (Array.isArray(params[k]) ? params[k]?.[0] : params[k]) as string | undefined;
@@ -25,6 +28,6 @@ export function parseEmbedOptions(params: Record<string, string | string[] | und
     // Only plain hex colors: the value ends up in a style attribute.
     brand: brand && /^#?[0-9a-f]{6}$/i.test(brand) ? `#${brand.replace(/^#/, "")}` : null,
     hideDetails: one("hideDetails") === "1",
-    layout: one("layout") === "column" ? "column" : "month",
+    layout: parseLayout(one("layout")) ?? "month",
   };
 }

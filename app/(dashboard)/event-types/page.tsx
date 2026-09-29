@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { CopyButton } from "@/features/dashboard/components/copy-button";
 import { BookingPageStrip } from "@/features/event-types/components/booking-page-strip";
+import { eventTypeTarget, profileTarget } from "@/features/embed/targets";
 import { EventTypeList } from "@/features/event-types/components/event-type-list";
 import { TeamEventTypes } from "@/features/event-types/components/team-event-types";
 import {
@@ -27,7 +28,12 @@ import { getEnv } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Event types" };
 
-function toRow(et: EventTypeView, weekCounts: Record<string, number>, pageUrl: string | null): EventTypeListRow {
+function toRow(
+  et: EventTypeView,
+  weekCounts: Record<string, number>,
+  pageUrl: string | null,
+  username: string | null,
+): EventTypeListRow {
   const status = statusOf(et);
   return {
     id: et.id,
@@ -39,6 +45,7 @@ function toRow(et: EventTypeView, weekCounts: Record<string, number>, pageUrl: s
     badges: rowBadges(et),
     week: weekSummary(status, weekCounts[et.id] ?? 0),
     url: pageUrl ? `${pageUrl}/${et.slug}` : null,
+    embed: eventTypeTarget(username, { slug: et.slug, title: et.title, durations: durationsOf(et) }),
   };
 }
 
@@ -58,7 +65,7 @@ export default async function EventTypesPage({ searchParams }: PageProps<"/event
   const appUrl = getEnv().APP_URL.replace(/\/$/, "");
   const username = profile?.username ?? user.username ?? null;
   const pageUrl = username ? `${appUrl}/${username}` : null;
-  const rows = eventTypes.map((et) => toRow(et, weekCounts, pageUrl));
+  const rows = eventTypes.map((et) => toRow(et, weekCounts, pageUrl, username));
   const publicCount = rows.filter((r) => r.status === "active").length;
   const hiddenCount = rows.filter((r) => r.status === "hidden").length;
 
@@ -99,6 +106,8 @@ export default async function EventTypesPage({ searchParams }: PageProps<"/event
         display={pageUrl ? pageUrl.replace(/^https?:\/\//, "") : ""}
         publicCount={publicCount}
         hiddenCount={hiddenCount}
+        embed={profileTarget(username, profile?.name ?? user.name)}
+        appUrl={appUrl}
       />
       {rows.length === 0 ? (
         <Card className="items-start gap-3 px-5 py-6">
@@ -110,7 +119,7 @@ export default async function EventTypesPage({ searchParams }: PageProps<"/event
           </Button>
         </Card>
       ) : (
-        <EventTypeList rows={rows} />
+        <EventTypeList rows={rows} appUrl={appUrl} />
       )}
       <TeamEventTypes items={teamTypes} />
     </div>

@@ -9,10 +9,19 @@ type CopyButtonProps = Omit<ComponentProps<typeof Button>, "onClick" | "children
   /** Visible text; leave out for an icon-only button (then pass `aria-label`). */
   children?: ReactNode;
   iconClassName?: string;
+  /** Screen-reader announcement after copying. */
+  copiedMessage?: string;
 };
 
 /** Copies `value` to the clipboard and confirms with a check mark for two seconds. */
-export function CopyButton({ value, children, iconClassName = "size-4", "aria-label": ariaLabel, ...props }: CopyButtonProps) {
+export function CopyButton({
+  value,
+  children,
+  iconClassName = "size-4",
+  copiedMessage = "Copied to clipboard",
+  "aria-label": ariaLabel,
+  ...props
+}: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -39,7 +48,7 @@ export function CopyButton({ value, children, iconClassName = "size-4", "aria-la
       <Icon className={iconClassName} aria-hidden />
       {children && (copied ? "Copied" : children)}
       <span className="sr-only" aria-live="polite">
-        {copied ? "Link copied to clipboard" : ""}
+        {copied ? copiedMessage : ""}
       </span>
     </Button>
   );

@@ -71,7 +71,16 @@ describe("frameAncestorsFor", () => {
     expect(frameAncestorsFor("/ada/intro", embed, undefined)).toEqual(["*"]);
     expect(frameAncestorsFor("/ada/intro", new URLSearchParams(), undefined)).toEqual(["'none'"]);
     expect(frameAncestorsFor("/dashboard", embed, undefined)).toEqual(["'none'"]);
-    expect(frameAncestorsFor("/booking/uid1", embed, "https://a.example")).toEqual(["https://a.example"]);
+    expect(frameAncestorsFor("/booking/uid1", embed, "https://a.example")).toEqual(["https://a.example", "'self'"]);
+    expect(frameAncestorsFor("/ada/intro", embed, "none")).toEqual(["'none'"]);
+  });
+
+  it("lets only the app itself frame the embed builder preview", () => {
+    expect(frameAncestorsFor("/embed/preview", embed, undefined)).toEqual(["'self'"]);
+    expect(frameAncestorsFor("/embed/preview", new URLSearchParams(), "https://a.example")).toEqual(["'self'"]);
+    expect(frameAncestorsFor("/embed/preview/x", embed, undefined)).toEqual(["'none'"]);
+    expect(frameAncestorsFor("/embed", embed, undefined)).toEqual(["'none'"]);
+    expect(buildCsp("n", { dev: false, frameAncestors: frameAncestorsFor("/embed/preview", embed, "none") })).toMatch(/frame-ancestors 'self'$/);
   });
 
   it("fails closed on an invalid allow-list", () => {

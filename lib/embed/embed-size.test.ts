@@ -55,7 +55,7 @@ type Api = {
 };
 
 /** Runs public/embed.js against minimal window/document stubs (no DOM library needed). */
-function load(scriptSrc = "https://cal.example/embed.js") {
+function load(scriptSrc = "https://cal.example/embed.js", timers: { setTimeout: (fn: () => void) => unknown } = { setTimeout }) {
   const listeners: Record<string, Listener[]> = {};
   const customEvents: { type: string; detail: unknown }[] = [];
   const host = element("div");
@@ -79,7 +79,7 @@ function load(scriptSrc = "https://cal.example/embed.js") {
     querySelectorAll: () => [],
     createElement: element,
   };
-  runInNewContext(SOURCE_CODE, { window, document, URL, setTimeout });
+  runInNewContext(SOURCE_CODE, { window, document, URL, setTimeout: timers.setTimeout });
   const api = window.OpenCalendar as Api;
   const post = (event: Record<string, unknown>) => listeners.message?.forEach((fn) => fn(event));
   return { api, host, post, customEvents };
@@ -131,6 +131,25 @@ describe("public/embed.js", () => {
     expect(params.getAll("topics")).toEqual(["a", "b"]);
     expect(params.has("notes")).toBe(false);
     expect(api.buildUrl("ada")).toBe("https://cal.example/ada?embed=1");
+  });
+
+  it("passes booking-link parameters: layout, date, month, duration and slot", () => {
+    const { api } = load();
+    const params = (config: Record<string, unknown>) => new URL(api.buildUrl("ada/intro", config)).searchParams;
+    const url = params({ layout: "week", date: "2026-10-01", month: "2026-10", duration: 45, slot: "2026-10-01T09:30:00Z" });
+    expect(Object.fromEntries(url)).toEqual({ layout: "week", date: "2026-10-01", month: "2026-10", duration: "45", slot: "2026-10-01T09:30:00Z", embed: "1" });
+    expect(params({ layout: "month" }).get("layout")).toBe("month");
+    // Epoch milliseconds and Date objects become ISO 8601 UTC starts.
+    expect(params({ slot: Date.UTC(2026, 9, 1, 9, 30) }).get("slot")).toBe("2026-10-01T09:30:00.000Z");
+    expect(params({ slot: new Date(Date.UTC(2026, 9, 1, 9, 30)) }).get("slot")).toBe("2026-10-01T09:30:00.000Z");
+  });
+
+  it("drops an unknown layout and reports it without throwing", () => {
+    const deferred: (() => void)[] = [];
+    const { api } = load(undefined, { setTimeout: (fn) => deferred.push(fn) });
+    expect(new URL(api.buildUrl("ada/intro", { layout: "grid" })).searchParams.has("layout")).toBe(false);
+    expect(deferred).toHaveLength(1);
+    expect(() => deferred[0]()).toThrow(/layout must be/);
   });
 
   it("accepts team, group and routing form calLinks", () => {
