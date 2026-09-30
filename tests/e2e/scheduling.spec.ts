@@ -69,7 +69,9 @@ test("host setup → public profile → booking → emails with ICS → dashboar
   expect(hostMail.text).not.toMatch(MANAGE_LINK); // the host never gets the attendee's token
 
   // The .ics download works from the confirmation page (BKG-007).
-  const ics = await booked.page.request.get((await booked.page.getByRole("link", { name: "Apple / .ics" }).getAttribute("href"))!);
+  const ics = await booked.page.request.get(
+    (await booked.page.getByRole("link", { name: "Apple / .ics" }).getAttribute("href"))!,
+  );
   expect(ics.headers()["content-type"]).toContain("text/calendar");
   expect(await ics.text()).toContain("ATTENDEE;CN=Bob Booker");
   await booked.context.close();
@@ -81,7 +83,10 @@ test("host setup → public profile → booking → emails with ICS → dashboar
   await expectAccessible(page);
 });
 
-test("booker in another time zone sees converted times in their clock (BKG-003, I18N-001)", async ({ page, browser }) => {
+test("booker in another time zone sees converted times in their clock (BKG-003, I18N-001)", async ({
+  page,
+  browser,
+}) => {
   const { username } = await setupHost(page);
   // Host works 09:00–17:00 Istanbul (UTC+3) = 02:00–10:00 in New York (EDT, UTC-4) or 01:00–09:00 (EST).
   const context = await browser.newContext({ timezoneId: "America/New_York", locale: "en-US" });
@@ -178,7 +183,10 @@ test("schedules: date override removes a day from the booking page (AVL-002)", a
   const guest = await context.newPage();
   await guest.goto(`/${username}/intro-call`);
   await pickFirstAvailableDay(guest);
-  const dayLabel = (await guest.getByRole("group", { name: "Days" }).locator('button[aria-pressed="true"]').getAttribute("aria-label"))!;
+  const dayLabel = (await guest
+    .getByRole("group", { name: "Days" })
+    .locator('button[aria-pressed="true"]')
+    .getAttribute("aria-label"))!;
   const date = new Date(`${dayLabel.replace(/^\w+,\s*/, "")} 12:00 UTC`);
   const iso = date.toISOString().slice(0, 10);
 
@@ -193,9 +201,13 @@ test("schedules: date override removes a day from the booking page (AVL-002)", a
 
   // The slot endpoint may serve its cached context for up to PUBLIC_CONTEXT_TTL_MS (10 s): e.g. in
   // dev, route handlers and server actions don't share the module instance that holds the cache.
+  // Open the day's month explicitly: near a month's end the first free day is in the next month,
+  // and a plain reload would show the current one.
   await expect(async () => {
-    await guest.reload();
-    await expect(guest.getByRole("button", { name: `${dayLabel}, no times available` })).toBeDisabled({ timeout: 2_000 });
+    await guest.goto(`/${username}/intro-call?month=${iso.slice(0, 7)}`);
+    await expect(guest.getByRole("button", { name: `${dayLabel}, no times available` })).toBeDisabled({
+      timeout: 2_000,
+    });
   }).toPass({ timeout: 20_000 });
   await context.close();
 });

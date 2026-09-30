@@ -8,6 +8,8 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-30
+
 ### Changed
 - The UI is built on shadcn/ui: dates use a calendar popover, times a slot picker, time zones a
   searchable list, confirmations a dialog; no browser-default form controls remain.
@@ -35,6 +37,8 @@ image and restart"; migrations run automatically (see
   plain text); each time opens the booking form on that time.
 - Week and column layouts for booking pages and embeds, with a layout switcher for bookers, and
   `slot=` / `month=` booking link parameters.
+- A Coolify template (`deploy/coolify/opencalendar.yaml`): paste it into a Docker Compose Empty
+  resource, set SMTP and deploy; Coolify generates the secrets and the domain.
 
 ### Fixed
 - Saving the schedule, event type, routing form, workflow or team forms no longer snaps checkboxes,

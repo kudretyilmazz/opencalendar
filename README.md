@@ -126,6 +126,8 @@ OPENCALENDAR_IMAGE=ghcr.io/kudretyilmazz/opencalendar:1 docker compose up -d --n
 
 The app listens on `127.0.0.1:3000`. Put a TLS reverse proxy (e.g. Caddy) in front and create your account right away: the first account becomes the administrator. Full guide: [self-hosting](./docs/03-architecture/self-hosting.md).
 
+**Coolify:** paste [`deploy/coolify/opencalendar.yaml`](./deploy/coolify/opencalendar.yaml) into a *Docker Compose Empty* resource, set your SMTP values and deploy. Coolify generates the secrets and the domain ([details](./docs/03-architecture/self-hosting.md#coolify)).
+
 ## Documentation
 
 - [User guide](./docs/06-user-guide/README.md): using OpenCalendar

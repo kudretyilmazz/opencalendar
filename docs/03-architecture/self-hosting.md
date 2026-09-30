@@ -152,6 +152,23 @@ prop from a Server Component or from `GET /api/config`, never from `process.env.
 Pages that read env directly are dynamic (or call `connection()` first) so values are not
 frozen into prerendered HTML.
 
+## Coolify
+
+[`deploy/coolify/opencalendar.yaml`](../../deploy/coolify/opencalendar.yaml) is a ready-made
+[Coolify](https://coolify.io) template (web, worker and PostgreSQL):
+
+1. In Coolify: **New Resource → Docker Compose Empty**, paste the file and save.
+2. Set `SMTP_HOST` and `SMTP_FROM` (plus `SMTP_USER`/`SMTP_PASSWORD`/`SMTP_PORT` if needed).
+   Coolify marks them as required and will not deploy without them.
+3. Give the `opencalendar` service a domain (Coolify generates one otherwise) and deploy.
+
+Coolify generates `AUTH_SECRET`, the Postgres password and `ENCRYPTION_KEY`. The key uses
+`SERVICE_REALBASE64_32_*` because it must decode to 32 bytes; Coolify's `SERVICE_BASE64_*` values
+are plain random text despite the name. **Back the generated `ENCRYPTION_KEY` up**: without it,
+stored calendar credentials cannot be decrypted. Coolify's proxy is on a private Docker network,
+so the default `TRUSTED_PROXIES` already covers it. Sign up right after the first deploy: the first
+account becomes the administrator.
+
 ## Reverse proxy and client IPs
 
 Run OpenCalendar behind a reverse proxy (Caddy, nginx, Traefik, a load balancer) that **appends** the client address to `X-Forwarded-For`. Per-IP rate limits use the right-most hop that is not in `TRUSTED_PROXIES`, so values a client puts in the header itself are ignored. If the app port is exposed directly to the internet, clients can choose their apparent IP; per-account lockout still applies, but per-IP limits become weak. Set `TRUSTED_PROXIES` to your proxy's address range if it is not on a private network.
