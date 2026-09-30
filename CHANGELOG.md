@@ -8,6 +8,10 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+### Added
+- A Coolify template (`deploy/coolify/opencalendar.yaml`): paste it into a Docker Compose Empty
+  resource, set SMTP and deploy; Coolify generates the secrets and the domain.
+
 ### Changed
 - The UI is built on shadcn/ui: dates use a calendar popover, times a slot picker, time zones a
   searchable list, confirmations a dialog; no browser-default form controls remain.
