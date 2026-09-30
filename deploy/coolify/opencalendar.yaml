@@ -9,7 +9,7 @@
 
 services:
   opencalendar:
-    image: ghcr.io/kudretyilmazz/opencalendar:1.0.0
+    image: ghcr.io/kudretyilmazz/opencalendar:1.1.0
     environment:
       - SERVICE_URL_OPENCALENDAR_3000
       - APP_URL=${SERVICE_URL_OPENCALENDAR}
@@ -46,7 +46,7 @@ services:
       retries: 10
 
   worker:
-    image: ghcr.io/kudretyilmazz/opencalendar:1.0.0
+    image: ghcr.io/kudretyilmazz/opencalendar:1.1.0
     command: ["node", "worker.js"]
     exclude_from_hc: true
     environment:
