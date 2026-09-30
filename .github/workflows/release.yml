@@ -21,10 +21,82 @@ jobs:
       contents: read
       packages: write
 
+  # One native runner per architecture: arm64 under QEMU crashed in `npm ci` ("Illegal
+  # instruction") and then hung. Each leg pushes an untagged image by digest; `publish` tags
+  # them only when both legs succeeded, and the amd64 leg scans before it pushes.
+  image:
+    name: Image (${{ matrix.platform }})
+    needs: [ci]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-24.04, arch: amd64 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - name: Image name (GHCR requires lowercase)
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Scan first, publish after: a vulnerable image is never tagged.
+      - name: Build for scanning (local)
+        if: matrix.arch == 'amd64'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: opencalendar:scan
+          cache-from: type=gha,scope=${{ matrix.arch }}
+      - name: Scan image (fails on high/critical)
+        if: matrix.arch == 'amd64'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opencalendar:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: |
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: mkdir -p /tmp/digests && touch "/tmp/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
   publish:
     name: Publish image and release
-    needs: [ci]
+    needs: [image]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       packages: write
@@ -43,7 +115,7 @@ jobs:
           tags="$image:$version"
           if [[ "$version" != *-* ]]; then
             major="${version%%.*}"; minor="${version#*.}"; minor="${minor%%.*}"
-            tags="$tags,$image:$major.$minor,$image:$major,$image:latest"
+            tags="$tags $image:$major.$minor $image:$major $image:latest"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
@@ -59,43 +131,27 @@ jobs:
             on { print }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then echo "CHANGELOG.md has no section for $VERSION"; exit 1; fi
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Scan first, publish after: a vulnerable image is never pushed.
-      - name: Build for scanning (amd64, local)
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          platforms: linux/amd64
-          load: true
-          tags: opencalendar:scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Scan image (fails on high/critical)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: opencalendar:scan
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-      - name: Build and publish multi-arch
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.licenses=AGPL-3.0-only
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Tag the multi-arch image
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          args=(); for tag in $TAGS; do args+=(-t "$tag"); done
+          # shellcheck disable=SC2046
+          docker buildx imagetools create "${args[@]}" $(printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
