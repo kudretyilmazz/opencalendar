@@ -1,13 +1,11 @@
-import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { HEADER_BUTTON_CLASS, PAGE_CLASS, PageHeader } from "@/components/page-header";
+import { PAGE_CLASS, PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { getDb } from "@/db/client";
 import { CalendarAccounts } from "@/features/calendars/components/calendar-accounts";
-import { ConnectProvider, ConnectStatus, ConnectTiles } from "@/features/calendars/components/connect-section";
+import { ConnectMenu, ConnectProvider, ConnectStatus, ConnectTiles } from "@/features/calendars/components/connect-section";
 import { calendarsSummary, plural } from "@/features/calendars/components/display";
 import { listConnections } from "@/features/calendars/server/connections";
 import { requireUser } from "@/lib/auth/session";
@@ -43,6 +41,9 @@ export default async function CalendarsPage({ searchParams }: PageProps<"/settin
   const oauthProviders = listProviders(env).filter(({ provider }) => provider.auth === "oauth2");
   const isAdmin = user.role === "admin";
   const summary = calendarsSummary(connections);
+  const oauthTiles = oauthProviders
+    .filter(({ configured }) => configured)
+    .map(({ provider }) => ({ id: provider.id, name: provider.name, mark: OAUTH_MARKS[provider.id] ?? provider.name.slice(0, 2) }));
 
   return (
     <ConnectProvider>
@@ -50,14 +51,7 @@ export default async function CalendarsPage({ searchParams }: PageProps<"/settin
         <PageHeader
           title="Calendars"
           description="Busy times in these calendars block your slots, and new bookings are written to one of them."
-          actions={
-            <Button asChild className={HEADER_BUTTON_CLASS}>
-              <a href="#connect">
-                <Plus aria-hidden />
-                Connect a calendar
-              </a>
-            </Button>
-          }
+          actions={<ConnectMenu oauth={oauthTiles} />}
         />
         {typeof params.connected === "string" && (
           <Alert variant="success">
@@ -95,11 +89,7 @@ export default async function CalendarsPage({ searchParams }: PageProps<"/settin
           <h2 id="connect-title" className="text-base font-semibold">
             {connections.length === 0 ? "Connect a calendar" : "Connect another calendar"}
           </h2>
-          <ConnectTiles
-            oauth={oauthProviders
-              .filter(({ configured }) => configured)
-              .map(({ provider }) => ({ id: provider.id, name: provider.name, mark: OAUTH_MARKS[provider.id] ?? provider.name.slice(0, 2) }))}
-          />
+          <ConnectTiles oauth={oauthTiles} />
           {isAdmin &&
             oauthProviders
               .filter(({ configured }) => !configured)

@@ -1,9 +1,18 @@
 "use client";
 
-import { Rss } from "lucide-react";
+import { Plus, Rss } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { HEADER_BUTTON_CLASS } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CaldavForm, IcsFeedForm, type PresetKey } from "./connect-forms";
 
 /** What a connect dialog opens: a CalDAV preset, or the ICS feed form. */
@@ -47,7 +56,10 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
             <>
               <DialogHeader>
                 <DialogTitle>Connect a CalDAV calendar</DialogTitle>
-                <DialogDescription>iCloud, Fastmail, Nextcloud or any CalDAV server. Busy times block your slots; bookings are written back.</DialogDescription>
+                <DialogDescription>
+                  iCloud, Fastmail, Nextcloud or any CalDAV server. Busy times block your slots; bookings are written
+                  back.
+                </DialogDescription>
               </DialogHeader>
               <CaldavForm key={target.preset} initialPreset={target.preset} onConnected={connected} />
             </>
@@ -56,7 +68,9 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
             <>
               <DialogHeader>
                 <DialogTitle>Add a calendar feed</DialogTitle>
-                <DialogDescription>Any ICS or webcal link. Read-only: its events block your availability.</DialogDescription>
+                <DialogDescription>
+                  Any ICS or webcal link. Read-only: its events block your availability.
+                </DialogDescription>
               </DialogHeader>
               <IcsFeedForm onConnected={connected} />
             </>
@@ -78,7 +92,8 @@ export function ConnectStatus() {
   );
 }
 
-export const logoClass = "flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-[13px] font-semibold text-foreground";
+export const logoClass =
+  "flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-[13px] font-semibold text-foreground";
 export const tileClass =
   "flex min-h-11 flex-col items-start gap-2 rounded-[12px] border border-border bg-card p-4 text-left text-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -87,7 +102,12 @@ const TILES: { label: string; hint: string; mark: ReactNode; target: ConnectTarg
   { label: "Fastmail", hint: "CalDAV", mark: "Fm", target: { kind: "caldav", preset: "fastmail" } },
   { label: "Nextcloud", hint: "CalDAV", mark: "Nc", target: { kind: "caldav", preset: "nextcloud" } },
   { label: "Other CalDAV", hint: "Any server URL", mark: "Dv", target: { kind: "caldav", preset: "other" } },
-  { label: "Calendar feed", hint: "ICS link, read-only", mark: <Rss className="size-[18px]" aria-hidden />, target: { kind: "feed" } },
+  {
+    label: "Calendar feed",
+    hint: "ICS link, read-only",
+    mark: <Rss className="size-[18px]" aria-hidden />,
+    target: { kind: "feed" },
+  },
 ];
 
 function TileBody({ label, hint, mark }: { label: string; hint: string; mark: ReactNode }) {
@@ -102,18 +122,59 @@ function TileBody({ label, hint, mark }: { label: string; hint: string; mark: Re
   );
 }
 
+type OAuthTile = { id: string; name: string; mark: string };
+
+/** The header's "Connect a calendar" button: the same choices as the tiles, one click away. */
+export function ConnectMenu({ oauth }: { oauth: OAuthTile[] }) {
+  const { open } = useConnect();
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button className={HEADER_BUTTON_CLASS}>
+          <Plus aria-hidden />
+          Connect a calendar
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {oauth.map((provider) => (
+          <DropdownMenuItem key={provider.id} asChild>
+            <a href={`/api/integrations/${provider.id}/connect`}>{provider.name}</a>
+          </DropdownMenuItem>
+        ))}
+        {oauth.length > 0 && <DropdownMenuSeparator />}
+        {TILES.map((tile) => (
+          <DropdownMenuItem key={tile.label} onSelect={() => open(tile.target)}>
+            {tile.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** The "Connect another calendar" tiles: OAuth providers link out, the rest open a dialog. */
-export function ConnectTiles({ oauth }: { oauth: { id: string; name: string; mark: string }[] }) {
+export function ConnectTiles({ oauth }: { oauth: OAuthTile[] }) {
   const { open } = useConnect();
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {oauth.map((provider) => (
-        <a key={provider.id} href={`/api/integrations/${provider.id}/connect`} aria-label={`Connect ${provider.name}`} className={tileClass}>
+        <a
+          key={provider.id}
+          href={`/api/integrations/${provider.id}/connect`}
+          aria-label={`Connect ${provider.name}`}
+          className={tileClass}
+        >
           <TileBody label={provider.name} hint="Sign in" mark={provider.mark} />
         </a>
       ))}
       {TILES.map((tile) => (
-        <button key={tile.label} type="button" aria-haspopup="dialog" onClick={() => open(tile.target)} className={tileClass}>
+        <button
+          key={tile.label}
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => open(tile.target)}
+          className={tileClass}
+        >
           <TileBody {...tile} />
         </button>
       ))}

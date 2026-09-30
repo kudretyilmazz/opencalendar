@@ -47,11 +47,21 @@ async function calendarObjects(path: string): Promise<string[]> {
 /** A weekday at least 3 days ahead (host's zone), as { iso: "YYYY-MM-DD", label: "Monday, October 5, 2026" }. */
 function targetDay() {
   const d = new Date(Date.now() + 3 * 86_400_000);
-  while ([0, 6].includes(new Date(d.toLocaleString("en-US", { timeZone: HOST_TZ })).getDay())) d.setTime(d.getTime() + 86_400_000);
-  const iso = new Intl.DateTimeFormat("en-CA", { timeZone: HOST_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const label = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(
-    Date.parse(`${iso}T12:00:00Z`),
-  );
+  while ([0, 6].includes(new Date(d.toLocaleString("en-US", { timeZone: HOST_TZ })).getDay()))
+    d.setTime(d.getTime() + 86_400_000);
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: HOST_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+  const label = new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(Date.parse(`${iso}T12:00:00Z`));
   return { iso, label, compact: iso.replaceAll("-", "") };
 }
 
@@ -110,7 +120,18 @@ test("OAuth providers stay hidden when not configured (INT-013)", async ({ page 
   await expect(page.getByRole("link", { name: /Connect Zoom/ })).toHaveCount(0);
 });
 
-test("CalDAV: busy events block slots; bookings are written, and deleted on cancel (INT-004, AVL-006, INT-007)", async ({ page, browser }) => {
+test("header 'Connect a calendar' opens a provider menu that leads to the connect dialog", async ({ page }) => {
+  await signUpVerified(page, "Menu User", "menu");
+  await page.goto("/settings/calendars");
+  await page.getByRole("button", { name: "Connect a calendar" }).click();
+  await page.getByRole("menuitem", { name: "Calendar feed" }).click();
+  await expect(page.getByRole("dialog", { name: "Add a calendar feed" })).toBeVisible();
+});
+
+test("CalDAV: busy events block slots; bookings are written, and deleted on cancel (INT-004, AVL-006, INT-007)", async ({
+  page,
+  browser,
+}) => {
   const day = targetDay();
   const { username, calPath } = await hostWithCaldav(page, `e2e-${Date.now().toString(36)}`);
 
@@ -118,7 +139,19 @@ test("CalDAV: busy events block slots; bookings are written, and deleted on canc
   const put = await dav(
     "PUT",
     `${calPath}busy.ics`,
-    ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//e2e//EN", "BEGIN:VEVENT", "UID:e2e-busy", "DTSTAMP:20260101T000000Z", `DTSTART;TZID=${HOST_TZ}:${day.compact}T090000`, `DTEND;TZID=${HOST_TZ}:${day.compact}T100000`, "SUMMARY:Busy", "END:VEVENT", "END:VCALENDAR"].join("\r\n"),
+    [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//e2e//EN",
+      "BEGIN:VEVENT",
+      "UID:e2e-busy",
+      "DTSTAMP:20260101T000000Z",
+      `DTSTART;TZID=${HOST_TZ}:${day.compact}T090000`,
+      `DTEND;TZID=${HOST_TZ}:${day.compact}T100000`,
+      "SUMMARY:Busy",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n"),
     { "content-type": "text/calendar" },
   );
   expect(put.status).toBe(201);
@@ -149,7 +182,18 @@ test("CalDAV: busy events block slots; bookings are written, and deleted on canc
 
 test("ICS feed blocks availability (INT-005)", async ({ page, browser }) => {
   const day = targetDay();
-  const feed = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//e2e//EN", "BEGIN:VEVENT", "UID:feed-1", "DTSTAMP:20260101T000000Z", `DTSTART;TZID=${HOST_TZ}:${day.compact}T110000`, `DTEND;TZID=${HOST_TZ}:${day.compact}T120000`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const feed = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//e2e//EN",
+    "BEGIN:VEVENT",
+    "UID:feed-1",
+    "DTSTAMP:20260101T000000Z",
+    `DTSTART;TZID=${HOST_TZ}:${day.compact}T110000`,
+    `DTEND;TZID=${HOST_TZ}:${day.compact}T120000`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
   const server: Server = createServer((_req, res) => {
     res.writeHead(200, { "content-type": "text/calendar" });
     res.end(feed);
@@ -181,7 +225,10 @@ test("ICS feed blocks availability (INT-005)", async ({ page, browser }) => {
   }
 });
 
-test("locations: invitee picks phone or Jitsi; details show on the confirmation and in the email (EVT-008, INT-010, INT-011)", async ({ page, browser }) => {
+test("locations: invitee picks phone or Jitsi; details show on the confirmation and in the email (EVT-008, INT-010, INT-011)", async ({
+  page,
+  browser,
+}) => {
   await freshCalendar("unused");
   await signUpVerified(page, "Loc Host", "lochost");
   const username = `loc${Date.now().toString(36)}`;
