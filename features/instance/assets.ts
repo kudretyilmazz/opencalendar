@@ -23,7 +23,7 @@ export function sniffImage(bytes: Uint8Array): ImageMime | null {
   if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
   if (startsWith(bytes, [0x00, 0x00, 0x01, 0x00])) return "image/x-icon";
   const head = new TextDecoder().decode(bytes.subarray(0, 1024)).replace(/^﻿/, "").trimStart();
-  if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return "image/svg+xml";
+  if (/^(<\?xml[^>]*>\s*)?(<!--(?:[^-]|-(?!->))*-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return "image/svg+xml";
   return null;
 }
 
