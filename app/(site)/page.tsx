@@ -2,11 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { getDb } from "@/db/client";
+import { getInstanceSettings } from "@/features/instance/server/service";
 import { getSession } from "@/lib/auth/session";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (await getSession()) redirect("/dashboard");
-  const { deleted } = await searchParams;
+  const [{ deleted }, settings] = await Promise.all([searchParams, getInstanceSettings(getDb())]);
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-8 px-4 text-center">
       {deleted && (
@@ -15,11 +17,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </Alert>
       )}
       <div className="flex max-w-xl flex-col gap-4">
-        <h1 className="text-4xl font-semibold tracking-tight">Scheduling you can host yourself</h1>
-        <p className="text-muted-foreground">
-          OpenCalendar is an open-source alternative to Calendly and Cal.com. Share a link, let people book time with
-          you, and keep your data on your own server.
-        </p>
+        <h1 className="text-4xl font-semibold tracking-tight">{settings.landingHeadline}</h1>
+        <p className="whitespace-pre-line text-muted-foreground">{settings.landingBody}</p>
       </div>
       <div className="flex gap-3">
         <Button asChild size="lg" className="h-10 px-5">

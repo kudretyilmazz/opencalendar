@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { CSSProperties } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getDb } from "@/db/client";
 import { PublicRoutingForm, RoutingMessage } from "@/features/routing-forms/components/public-form";
 import { rawAnswersFromParams } from "@/features/routing-forms/schemas";
 import { submitRoutingFormAction } from "@/features/routing-forms/server/actions";
 import { getPublicForm, getResponseMessage } from "@/features/routing-forms/server/service";
+import { brandStyle } from "@/features/instance/theme/brand-style";
 import { cn } from "@/lib/cn";
 import { parseEmbedOptions } from "@/lib/embed/protocol";
 
@@ -34,7 +34,7 @@ export default async function RoutingFormPage({ params, searchParams }: PageProp
   const message = messageId ? await getResponseMessage(db, id, messageId) : null;
   const embed = parseEmbedOptions(query);
   const theme = embed?.theme === "dark" ? "dark" : embed?.theme === "light" ? "light" : undefined;
-  const brand = embed?.brand ? ({ "--primary": embed.brand, "--primary-foreground": "#ffffff", "--ring": embed.brand } as CSSProperties) : undefined;
+  const brand = brandStyle(embed?.brand);
 
   return (
     <main className={cn("mx-auto flex w-full flex-1 flex-col", embed ? "max-w-xl bg-background p-4 text-foreground" : "max-w-xl px-4 py-10", theme)} style={brand}>

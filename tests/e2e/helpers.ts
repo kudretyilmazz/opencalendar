@@ -189,3 +189,16 @@ export async function queryValue<T>(text: string, values: unknown[]): Promise<T 
     await pool.end();
   }
 }
+
+/** Runs one statement against the app database (setup the UI can't do, e.g. the first admin). */
+export async function execSql(text: string, values: unknown[] = []): Promise<void> {
+  const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!url) throw new Error("E2E_DATABASE_URL or DATABASE_URL is required");
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: url, max: 1 });
+  try {
+    await pool.query(text, values);
+  } finally {
+    await pool.end();
+  }
+}

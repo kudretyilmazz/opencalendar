@@ -28,3 +28,14 @@ export async function requireAdmin(): Promise<SessionUser> {
   if (user.role !== "admin") redirect("/dashboard");
   return user;
 }
+
+/**
+ * For admin Server Actions: the admin user, or null so the action can return an error state
+ * instead of redirecting mid-submit. The role comes from the session row's user, which is
+ * re-read on every request (no cookie cache), so a demotion takes effect immediately.
+ */
+export async function requireAdminAction(): Promise<SessionUser | null> {
+  const session = await getSession();
+  if (!session || session.user.disabledAt || session.user.role !== "admin") return null;
+  return session.user;
+}

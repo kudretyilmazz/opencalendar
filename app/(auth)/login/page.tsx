@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoginForm } from "@/features/auth/components/auth-forms";
-import { enabledSocialProviders } from "@/features/auth/server/queries";
+import { getDb } from "@/db/client";
+import { visibleSocialProviders } from "@/features/auth/server/queries";
 import { getSession } from "@/lib/auth/session";
 import { getEnv } from "@/lib/env";
 import { safeRedirectPath } from "@/lib/security/redirect";
@@ -29,7 +30,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <AlertDescription>{notice.text}</AlertDescription>
         </Alert>
       )}
-      <LoginForm providers={enabledSocialProviders(getEnv())} next={next} />
+      <LoginForm providers={await visibleSocialProviders(getDb(), getEnv())} next={next} />
     </div>
   );
 }

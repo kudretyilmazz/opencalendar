@@ -14,7 +14,7 @@ export function testDatabase(): { db: Database; close: () => Promise<void>; url:
 /** Removes all application rows between tests (pg-boss schema is left alone). */
 export async function resetDatabase(db: Database): Promise<void> {
   await db.execute(
-    sql`TRUNCATE "user", "session", "account", "verification", "rate_limit", "profile_settings", "login_attempt", "team" CASCADE`,
+    sql`TRUNCATE "user", "session", "account", "verification", "rate_limit", "profile_settings", "login_attempt", "team", "instance_settings", "instance_asset" CASCADE`,
   );
 }
 

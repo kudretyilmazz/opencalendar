@@ -249,6 +249,8 @@ bookkeeping. Team-scoped workflows arrived in M4 (`workflow.team_id`); team-scop
 | `api_key` | id, user_id FK, team_id FK null, name, prefix text (first 8 chars, shown), key_hash text unique (SHA-256 of full key), scopes text[], last_used_at, expires_at null, revoked_at null | M5 |
 | `rate_limit_bucket` | key text PK (`ip:...`, `key:...`), tokens real, refilled_at timestamptz; `UNLOGGED` table, custom migration | M3 |
 | `audit_log` | id bigserial, actor_user_id FK null, actor_api_key_id FK null, team_id null, action text (`booking.cancel`, `member.role_change` ...), target_type, target_id, ip inet, user_agent text, metadata jsonb, created_at; append-only (no UPDATE/DELETE grants) | M6 |
+| `instance_settings` (as built) | id smallint PK = 1 (CHECK, single row), app_name, description, hide_powered_by, hide_source_link, theme jsonb (`{light,dark}` × `{primary,highlight}` hex), radius, default_theme, email_footer_text, email_button_color, signup_mode enum null (null = `SIGNUP_MODE`), landing_headline, landing_body, login_message, oauth_google_hidden, oauth_microsoft_hidden, default_time_zone, default_week_start, default_time_format, updated_at, updated_by FK null; null columns mean "built-in default" ([ADR-0007](../adr/0007-instance-settings-in-db.md)) | M6 |
+| `instance_asset` (as built) | kind enum(`logo`,`logo_dark`,`favicon`,`apple_icon`) PK, bytes bytea, mime_type, sha256, size_bytes, updated_at; served by `/api/branding/[kind]` | M6 |
 
 ## Double-booking protection
 

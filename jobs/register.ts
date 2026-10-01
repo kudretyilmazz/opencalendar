@@ -1,6 +1,8 @@
 import type { PgBoss } from "pg-boss";
 import type { Database } from "@/db/client";
 import { createIntegrationDeps } from "@/features/calendars/server/deps";
+import { emailBranding } from "@/features/instance/email-branding";
+import { getInstanceSettings } from "@/features/instance/server/service";
 import { createWebhookDeliverHandler } from "@/features/webhooks/server/deliver";
 import type { Cipher } from "@/lib/crypto/encryption";
 import type { Mailer } from "@/lib/email/transport";
@@ -30,7 +32,14 @@ export async function registerWorkers(boss: PgBoss, deps: WorkerDeps): Promise<v
   // Throughput comes from concurrent consumers instead (plus LISTEN/NOTIFY wake-ups).
   // Retries and delayed jobs (reminders) send no NOTIFY, so the backstop poll stays short.
   const polling = { pollingIntervalSeconds: 1, notifyPollingIntervalSeconds: 2 };
-  await boss.work(QUEUES.emailSend.name, { batchSize: 1, localConcurrency: 4, ...polling }, createEmailSendHandler(deps));
+  await boss.work(
+    QUEUES.emailSend.name,
+    { batchSize: 1, localConcurrency: 4, ...polling },
+    createEmailSendHandler({
+      ...deps,
+      branding: async () => emailBranding(await getInstanceSettings(deps.db), deps.env.APP_URL),
+    }),
+  );
   await boss.work(
     QUEUES.bookingProcess.name,
     { batchSize: 1, includeMetadata: true, localConcurrency: 2, ...polling },

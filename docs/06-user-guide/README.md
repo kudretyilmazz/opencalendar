@@ -32,6 +32,7 @@ Start here if you're new to OpenCalendar: [Getting started](./getting-started.md
 
 - **Embedding** - Place your booking page on your own website. See [Embedding and integrations](./embedding-and-integrations.md).
 - **Webhooks** - Receive notifications when bookings happen. See [Webhooks](./embedding-and-integrations.md#webhooks) and the [webhook reference](../03-architecture/api-and-webhooks.md#webhooks). There is no public REST API or API keys in 1.0.
+- **Administration** - Instance admins brand the app (name, logo, favicon, colors, emails), control sign-ups and manage accounts. See [Administration](./administration.md).
 - **Self-hosting** - Run OpenCalendar on your own infrastructure. See the [Self-hosting guide](../03-architecture/self-hosting.md).
 
 ## Need help?

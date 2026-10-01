@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createCipher } from "@/lib/crypto/encryption";
 import type { Mailer, OutgoingEmail } from "@/lib/email/transport";
 import { emailJobPayload, openEmail, sealEmail } from "@/lib/jobs/queues";
+import { DEFAULT_EMAIL_BRANDING } from "@/features/instance/email-branding";
 import { createEmailSendHandler } from "./email-send";
 
 const cipher = createCipher({ current: Buffer.alloc(32, 4).toString("base64") });
@@ -51,6 +52,18 @@ describe("createEmailSendHandler", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ to: "a@b.test", from: "OpenCalendar <no-reply@x.test>" });
     expect(sent[0].html).toContain("https://x.test/m");
+  });
+
+  it("renders with the instance branding when one is provided", async () => {
+    const sent: OutgoingEmail[] = [];
+    const mailer: Mailer = { send: async (m) => void sent.push(m) };
+    const branding = vi.fn().mockResolvedValue({ ...DEFAULT_EMAIL_BRANDING, appName: "Acme Meet" });
+    const handler = createEmailSendHandler({ mailer, from: "x@x.test", cipher, branding });
+
+    await handler([job(magic())]);
+
+    expect(branding).toHaveBeenCalledOnce();
+    expect(sent[0].html).toContain("Sign in to Acme Meet");
   });
 
   it("rethrows transport failures so pg-boss retries the job", async () => {

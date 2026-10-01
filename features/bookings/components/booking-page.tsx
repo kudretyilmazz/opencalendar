@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import type { CSSProperties } from "react";
 import { Card } from "@/components/ui/card";
 import { type Database, getDb } from "@/db/client";
 import { user } from "@/db/schema";
@@ -11,6 +10,7 @@ import { findBookingForManage } from "@/features/bookings/server/service";
 import type { BookingTarget } from "@/features/bookings/server/targets";
 import { isUsablePrivateLink } from "@/features/event-types/server/private-links";
 import { durationsOf } from "@/features/event-types/server/service";
+import { brandStyle } from "@/features/instance/theme/brand-style";
 import { cn } from "@/lib/cn";
 import { requestTime } from "@/lib/clock";
 import { parseBookingLinkParams } from "@/lib/embed/booking-link";
@@ -60,7 +60,7 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
   const routing = one(query.routing);
   const theme = embed?.theme === "dark" ? "dark" : embed?.theme === "light" ? "light" : undefined;
   const brandColor = embed?.brand ?? target.team?.brandColor ?? undefined;
-  const brand = brandColor ? ({ "--primary": brandColor, "--primary-foreground": "#ffffff", "--ring": brandColor } as CSSProperties) : undefined;
+  const brand = brandStyle(brandColor);
 
   return (
     <main className={cn("mx-auto flex w-full flex-1 flex-col", embed ? "max-w-5xl bg-background p-0 text-foreground" : "max-w-5xl px-4 py-10", theme)} style={brand}>

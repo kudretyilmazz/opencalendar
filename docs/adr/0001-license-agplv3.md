@@ -29,7 +29,8 @@ Last updated: 2026-09-28
   not a CLA that would allow relicensing.
 - Network use triggers source disclosure (AGPL section 13): the app shows a "Source" link in the
   footer pointing to `SOURCE_URL` (defaults to the upstream repository), so operators who modify
-  the code can point it at their fork.
+  the code can point it at their fork. Admins may hide the footer link (ADM-011); it then points to
+  `/about`, which always offers the source at `SOURCE_URL` (ADR-0007).
 - Embeds and the public REST API are interfaces, not derived works; client code that only calls
   `/api/v1` or embeds the booking widget is not required to be AGPL. We state this in the FAQ.
 

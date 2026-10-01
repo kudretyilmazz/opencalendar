@@ -5,6 +5,8 @@ import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { and, count, eq, gt } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import { resolveSignupMode } from "@/features/instance/defaults";
+import { loadInstanceSettings } from "@/features/instance/server/service";
 import * as schema from "@/db/schema";
 import type { Env } from "@/lib/env";
 import type { EmailRequest } from "@/lib/jobs/queues";
@@ -45,6 +47,16 @@ const SIGNUP_MESSAGES = {
 const signupRejected = (reason: keyof typeof SIGNUP_MESSAGES) =>
   new APIError("FORBIDDEN", { message: SIGNUP_MESSAGES[reason], code: reason });
 
+/** Instance-wide defaults for new accounts (ADM-009); users change them in their settings. */
+async function newUserDefaults(db: Database): Promise<{ timeZone?: string; weekStart?: number; timeFormat?: number }> {
+  const settings = await loadInstanceSettings(db);
+  return {
+    ...(settings.defaultTimeZone && { timeZone: settings.defaultTimeZone }),
+    ...(settings.defaultWeekStart !== null && { weekStart: settings.defaultWeekStart }),
+    ...(settings.defaultTimeFormat !== null && { timeFormat: settings.defaultTimeFormat }),
+  };
+}
+
 export function createAuth({ db, env, sendEmail }: AuthDeps) {
   const socialProviders = {
     ...(env.oauth.google && { google: { ...env.oauth.google, prompt: "select_account" as const } }),
@@ -58,12 +70,14 @@ export function createAuth({ db, env, sendEmail }: AuthDeps) {
    * account with an attacker's password.
    */
   const currentSignupDecision = async (email: string | undefined, passwordSignup: boolean) => {
+    // Admins can override SIGNUP_MODE in the UI (ADM-009); read uncached, sign-ups are rare.
+    const mode = resolveSignupMode(await loadInstanceSettings(db), env.SIGNUP_MODE);
     const [{ value }] = await db.select({ value: count() }).from(schema.user);
     const invited =
-      env.SIGNUP_MODE === "invite_only" && email && !passwordSignup
+      mode === "invite_only" && email && !passwordSignup
         ? (await db.$count(schema.teamInvitation, and(eq(schema.teamInvitation.email, email.toLowerCase()), gt(schema.teamInvitation.expiresAt, new Date())))) > 0
         : false;
-    return decideSignup({ mode: env.SIGNUP_MODE, existingUserCount: value, invited });
+    return decideSignup({ mode, existingUserCount: value, invited });
   };
 
   return betterAuth({
@@ -142,7 +156,7 @@ export function createAuth({ db, env, sendEmail }: AuthDeps) {
           before: async (user, context) => {
             const decision = await currentSignupDecision(user.email, context?.path === "/sign-up/email");
             if (!decision.allowed) throw signupRejected(decision.reason);
-            return { data: { ...user, role: "user" } };
+            return { data: { ...user, ...(await newUserDefaults(db)), role: "user" } };
           },
           // First-run bootstrap happens after commit, under a lock: exactly one admin (AUTH-005).
           after: async (user) => {
