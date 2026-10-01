@@ -1,0 +1,1 @@
+ALTER TABLE "event_type" ADD COLUMN "assign_all_team_members" boolean DEFAULT false NOT NULL;

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { FormField } from "@/components/form-field";
@@ -64,6 +64,9 @@ export function BookingForm({ config, slot, duration, prefs, tokens, onBack, onT
   const [answers, setAnswers] = useState<Answers>(config.prefill.answers);
   // A single booking unless the booker explicitly asks for a series.
   const [count, setCount] = useState(1);
+  // Optional fields stay folded (a shorter form, less scrolling) unless they already hold something.
+  const [showGuests, setShowGuests] = useState(false);
+  const [showNotes, setShowNotes] = useState(Boolean(config.prefill.notes));
   const chosenKind = config.locations[locationIndex]?.kind;
   const visible = config.questions.filter((q) => !q.hidden);
   const setAnswer = (key: string, value: Answer | undefined) =>
@@ -152,9 +155,9 @@ export function BookingForm({ config, slot, duration, prefs, tokens, onBack, onT
       <FormField label="Email" htmlFor="email" error={error?.fields?.["booker.email"]}>
         <Input id="email" name="email" type="email" autoComplete="email" required defaultValue={config.reschedule?.email ?? config.prefill.email} />
       </FormField>
-      {config.maxGuests > 0 && !config.reschedule && (
+      {config.maxGuests > 0 && !config.reschedule && (showGuests || error?.fields?.guests) && (
         <FormField label="Guests (optional)" htmlFor="guests" hint={`Up to ${config.maxGuests} emails, separated by commas.`} error={error?.fields?.guests}>
-          <Input id="guests" name="guests" />
+          <Input id="guests" name="guests" autoFocus={showGuests} />
         </FormField>
       )}
       {config.locations.length > 1 && (
@@ -198,19 +201,38 @@ export function BookingForm({ config, slot, duration, prefs, tokens, onBack, onT
           </Select>
         </FormField>
       )}
-      <FormField label="Notes (optional)" htmlFor="notes">
-        <Textarea id="notes" name="notes" maxLength={2000} defaultValue={config.prefill.notes} className="min-h-20" />
-      </FormField>
+      {showNotes && (
+        <FormField label="Notes (optional)" htmlFor="notes">
+          <Textarea id="notes" name="notes" maxLength={2000} defaultValue={config.prefill.notes} autoFocus={!config.prefill.notes} className="min-h-20" />
+        </FormField>
+      )}
+      {((config.maxGuests > 0 && !config.reschedule && !showGuests && !error?.fields?.guests) || !showNotes) && (
+        <div className="-ml-2.5 flex flex-wrap gap-1">
+          {config.maxGuests > 0 && !config.reschedule && !showGuests && !error?.fields?.guests && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowGuests(true)}>
+              <Plus className="size-4" aria-hidden /> Add guests
+            </Button>
+          )}
+          {!showNotes && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowNotes(true)}>
+              <Plus className="size-4" aria-hidden /> Add a note
+            </Button>
+          )}
+        </div>
+      )}
       {config.requiresConfirmation && !config.reschedule && <p className="text-sm text-muted-foreground">The host will confirm this booking before it’s final.</p>}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       )}
-      <Button type="submit" size="lg" disabled={submitting}>
-        {submitting && <Spinner />}
-        {submitting ? "Sending…" : verb}
-      </Button>
+      {/* On phones the button stays at the bottom of the screen while the form scrolls. */}
+      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 py-3 @lg/booker:-mx-6 @lg/booker:px-6 @xl/panel:static @xl/panel:mx-0 @xl/panel:border-0 @xl/panel:bg-transparent @xl/panel:p-0">
+        <Button type="submit" size="lg" disabled={submitting} className="w-full">
+          {submitting && <Spinner />}
+          {submitting ? "Sending…" : verb}
+        </Button>
+      </div>
     </form>
   );
 }

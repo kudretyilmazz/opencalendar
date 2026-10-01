@@ -80,6 +80,7 @@ export default async function TeamEventTypePage({ params }: PageProps<"/teams/[i
                 weight: h.weight,
                 priority: h.priority,
               }))}
+              initialAssignAll={et.assignAllTeamMembers}
               windowDays={et.roundRobinWindowDays}
               roundRobin={et.schedulingType === "round_robin"}
               action={saveHostsAction.bind(null, id, eventTypeId)}

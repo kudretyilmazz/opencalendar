@@ -47,6 +47,36 @@ describe("renderEmail", () => {
     expect(email.html).not.toContain("<script>alert(1)</script>");
   });
 
+  it("asks the invitee to pick a new time without calling it a cancellation (BKG-010)", async () => {
+    const email = await renderEmail({
+      template: "reschedule-requested",
+      props: {
+        audience: "attendee",
+        title: "Intro between Ada and Grace",
+        start: Date.parse("2030-01-07T10:00:00Z"),
+        end: Date.parse("2030-01-07T10:30:00Z"),
+        timeZone: "Europe/Istanbul",
+        locale: "en",
+        hour12: false,
+        hostName: "Ada",
+        attendeeName: "Grace",
+        attendeeEmail: "grace@example.com",
+        message: "Something came up",
+        rescheduleUrl: "https://x.test/ada/intro?reschedule=u1&token=t1",
+        manageUrl: "https://x.test/booking/u1?token=t1",
+      },
+    });
+    expect(email.subject).toBe("Please pick a new time: Intro between Ada and Grace");
+    expect(email.text).toContain("Ada asked you to pick a new time".toUpperCase());
+    expect(email.text).toContain("stays booked for this time until you pick a new one");
+    expect(email.text).toContain("Message from Ada: Something came up");
+    expect(email.html).toContain('href="https://x.test/ada/intro?reschedule=u1&amp;token=t1"');
+    expect(email.html).toContain("https://x.test/booking/u1?token=t1");
+    expect(email.text).toContain("13:00"); // 10:00 UTC in Istanbul
+    expect(email.text).not.toMatch(/cancelled/i);
+    expect(email.calendar).toBeUndefined();
+  });
+
   describe("instance branding (ADM-011)", () => {
     const acme = {
       ...DEFAULT_EMAIL_BRANDING,

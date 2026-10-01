@@ -27,6 +27,8 @@ function details(patch: Partial<BookingDetails["booking"]> = {}): BookingDetails
       notes: null,
       rescheduledFromId: null,
       rescheduled: false,
+      rescheduleRequestedAt: null,
+      rescheduleRequestMessage: null,
       cancellationReason: null,
       cancelledBy: null,
       cancelledAt: null,

@@ -36,6 +36,7 @@ async function bookAsGuest(browser: Browser, url: string, timeZone: string, loca
   await slot.click();
   await page.getByLabel("Your name").fill("Bob Booker");
   await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Add a note" }).click();
   await page.getByLabel("Notes (optional)").fill("Looking forward to it");
   await page.getByRole("button", { name: "Confirm booking" }).click();
   await expect(page).toHaveURL(/\/booking\/[A-Za-z0-9_-]+\?token=.+&new=1/);
@@ -162,18 +163,64 @@ test("a manage link with a wrong token can't cancel (BKG-011)", async ({ page, b
   await booked.context.close();
 });
 
+test("host asks the invitee to pick a new time; nothing is cancelled until they do (BKG-010)", async ({ page, browser }) => {
+  const { username, hostEmail } = await setupHost(page);
+  const booked = await bookAsGuest(browser, `/${username}/intro-call`, "UTC");
+  await page.goto("/bookings");
+
+  // The dialog says an email goes out and asks for confirmation; backing out sends nothing.
+  await page.getByRole("button", { name: "Request reschedule" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Email Bob Booker to pick a new time?" });
+  await expect(dialog).toContainText(`(${booked.email}) will get an email asking them to choose a new date and time`);
+  await expect(dialog).toContainText("The meeting is not cancelled");
+  await expectAccessible(page);
+  await dialog.getByRole("button", { name: "Don’t send" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("New time requested")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Request reschedule" }).click();
+  await dialog.getByLabel(/Message to Bob Booker/).fill("Can we move this?");
+  await dialog.getByRole("button", { name: "Send email" }).click();
+  await expect(page.getByText("We emailed Bob Booker a link to pick a new time. The meeting stays booked until they do.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("New time requested")).toBeVisible();
+
+  const mail = await waitForEmail(booked.email, /^Please pick a new time: Intro call/);
+  expect(mail.text).toContain("Can we move this?");
+  expect(mail.text).not.toMatch(/cancelled/i);
+  const link = mail.text.match(/https?:\/\/\S+\?reschedule=[^\s)\]]+/)?.[0];
+  expect(link).toContain(`/${username}/intro-call?reschedule=`);
+
+  // Still booked: the invitee's own page shows the booking, not a cancellation.
+  await booked.page.reload();
+  await expect(booked.page.getByRole("heading", { name: /You are scheduled|Your booking/ })).toBeVisible();
+
+  // The invitee picks a new time through the link; the meeting moves (one "Rescheduled" email).
+  await booked.page.goto(link!);
+  await expect(booked.page.getByText(/Rescheduling your booking from/)).toBeVisible();
+  await pickFirstAvailableDay(booked.page);
+  await booked.page.locator('section[aria-label="Choose a time"] li button').nth(1).click();
+  await expect(booked.page.getByLabel("Email")).toHaveValue(booked.email);
+  await booked.page.getByRole("button", { name: "Confirm new time" }).click();
+  await expect(booked.page.getByRole("heading", { name: "You are scheduled" })).toBeVisible();
+  await waitForEmail(booked.email, /^Rescheduled: Intro call/);
+  await waitForEmail(hostEmail, /^Rescheduled: Intro call/);
+  await page.reload();
+  await expect(page.getByText("New time requested")).toHaveCount(0);
+  await booked.context.close();
+});
+
 test("host cancels from the dashboard and the invitee is notified (BKG-010)", async ({ page, browser }) => {
   const { username } = await setupHost(page);
   const booked = await bookAsGuest(browser, `/${username}/intro-call`, "UTC");
   await booked.context.close();
   await page.goto("/bookings");
-  await page.getByRole("button", { name: "Request reschedule" }).click();
-  await page.getByLabel(/Message to Bob Booker/).fill("Can we move this?");
-  await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByText("We asked the invitee to pick a new time.")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel booking" }).click();
+  await page.getByLabel(/Reason for cancelling/).fill("Double-booked, sorry");
+  await page.getByRole("button", { name: "Cancel booking" }).click();
+  await expect(page.getByText("Booking cancelled. The invitee has been notified.")).toBeVisible();
   const mail = await waitForEmail(booked.email, /^Cancelled: Intro call/);
-  expect(mail.text).toContain("Can we move this?");
-  expect(mail.text).toContain(`/${username}/intro-call`);
+  expect(mail.text).toContain("Double-booked, sorry");
 });
 
 test("schedules: date override removes a day from the booking page (AVL-002)", async ({ page, browser }) => {

@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { FormField } from "@/components/form-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import type { ActionState } from "@/lib/actions";
 import { PRIORITY_LABELS } from "@/lib/availability/round-robin";
 import type { HostForm } from "../schemas";
@@ -21,18 +23,27 @@ type Member = { userId: string; name: string };
 export function HostsPanel({
   members,
   initial,
+  initialAssignAll,
   windowDays,
   roundRobin,
   action,
 }: {
   members: Member[];
   initial: HostForm[];
+  /** "Assign all team members" is on: everyone hosts, including people who join later. */
+  initialAssignAll: boolean;
   windowDays: number;
   roundRobin: boolean;
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
-  const [hosts, setHosts] = useState<HostForm[]>(initial);
+  const [picked, setHosts] = useState<HostForm[]>(initial);
+  const [assignAll, setAssignAll] = useState(initialAssignAll);
   const [rrWindow, setRrWindow] = useState(windowDays);
+  const pickedById = new Map(picked.map((h) => [h.userId, h]));
+  // With assign-all every member hosts; settings already chosen for someone are kept.
+  const hosts = assignAll
+    ? members.map((m) => pickedById.get(m.userId) ?? { userId: m.userId, isFixed: !roundRobin, weight: 100, priority: 2 })
+    : picked;
   const byId = new Map(hosts.map((h) => [h.userId, h]));
   const toggle = (userId: string, on: boolean) =>
     setHosts((list) =>
@@ -41,7 +52,12 @@ export function HostsPanel({
         : list.filter((h) => h.userId !== userId),
     );
   const patch = (userId: string, change: Partial<HostForm>) =>
-    setHosts((list) => list.map((h) => (h.userId === userId ? { ...h, ...change } : h)));
+    setHosts(() => hosts.map((h) => (h.userId === userId ? { ...h, ...change } : h)));
+  const switchAssignAll = (on: boolean) => {
+    // Turning it off keeps today's members as hosts, so nothing changes until boxes are unticked.
+    setHosts(hosts);
+    setAssignAll(on);
+  };
 
   return (
     <section className="flex flex-col gap-3">
@@ -51,9 +67,27 @@ export function HostsPanel({
           ? "Each booking goes to one free host, balanced by weight over recent bookings; priority breaks ties. Fixed hosts attend every booking."
           : "Every host attends; a time is offered only when all of them are free."}
       </p>
-      <PayloadForm action={action} payload={{ hosts, roundRobinWindowDays: rrWindow }} submitLabel="Save hosts">
+      {hosts.length === 0 && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            No hosts yet, so the booking page shows no times. Pick hosts below, or assign all team members, and save.
+          </AlertDescription>
+        </Alert>
+      )}
+      <PayloadForm action={action} payload={{ hosts, roundRobinWindowDays: rrWindow, assignAll }} submitLabel="Save hosts">
         {(errors) => (
           <>
+            <div className="flex items-start gap-3 rounded-md border border-border p-3">
+              <Switch id="assign-all" checked={assignAll} onCheckedChange={switchAssignAll} aria-describedby="assign-all-hint" />
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="assign-all">Assign all team members</Label>
+                <span id="assign-all-hint" className="text-[13px] text-muted-foreground">
+                  {roundRobin
+                    ? "Everyone in the team is in the pool, including people who join later."
+                    : "Everyone in the team hosts, including people who join later. A time is offered only when all of them are free, so it gets harder to find one as the team grows."}
+                </span>
+              </div>
+            </div>
             <ul className="flex flex-col gap-2">
               {members.map((m) => {
                 const host = byId.get(m.userId);
@@ -66,6 +100,7 @@ export function HostsPanel({
                       <Checkbox
                         id={`host-${m.userId}`}
                         checked={Boolean(host)}
+                        disabled={assignAll}
                         onCheckedChange={(v) => toggle(m.userId, v === true)}
                       />
                       <FieldLabel htmlFor={`host-${m.userId}`} className="font-normal">

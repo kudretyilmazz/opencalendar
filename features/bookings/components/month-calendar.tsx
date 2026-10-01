@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -9,6 +9,7 @@ import { formatDate, type LocalDate, wallToUtc, weekdayOf } from "@/lib/availabi
 import { cn } from "@/lib/cn";
 import { type FormatPrefs, formatDateLong } from "@/lib/format";
 import { type Month, monthDays, type Slot } from "./booker-view";
+import { revealBehavior, shouldReveal } from "./reveal";
 import { SlotButton } from "./slot-button";
 
 type Props = {
@@ -49,10 +50,22 @@ export function MonthCalendar(props: Props) {
   const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(Date.UTC(month.year, month.month - 1, 1));
   const canGoBack = month.year > today.year || (month.year === today.year && month.month > today.month);
 
+  // When the times sit below the calendar (phones, narrow embeds, column layout), picking a day
+  // brings them into view; otherwise they would appear off screen with nothing visibly changing.
+  const timesRef = useRef<HTMLElement>(null);
+  const revealPending = useRef(false);
+  useEffect(() => {
+    const el = timesRef.current;
+    if (!revealPending.current || !el || !selectedDate) return;
+    revealPending.current = false;
+    if (shouldReveal(el.getBoundingClientRect(), window.innerHeight)) el.scrollIntoView({ block: "start", behavior: revealBehavior() });
+  }, [selectedDate]);
+
   return (
-    <div className={cn("grid gap-6", !props.stacked && "lg:grid-cols-[1fr_220px]")}>
+    // Side by side once the panel (not the window) is wide enough; see BookingWidget.
+    <div className={cn("grid gap-4 @xl/panel:gap-6", !props.stacked && "@xl/panel:grid-cols-[1fr_220px]")}>
       <section aria-label="Choose a date" aria-busy={props.busy}>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between @xl/panel:mb-4">
           <h2 className="font-medium" aria-live="polite">
             {monthLabel}
           </h2>
@@ -87,10 +100,14 @@ export function MonthCalendar(props: Props) {
                 disabled={!available}
                 aria-pressed={selected}
                 aria-label={`${label}${available ? "" : ", no times available"}`}
-                onClick={() => props.onSelectDate(key)}
+                onClick={() => {
+                  revealPending.current = true;
+                  props.onSelectDate(key);
+                }}
                 // No transition: axe must never sample a day mid-fade from the dimmed loading state.
                 className={cn(
-                  "aspect-square h-auto w-full rounded-md text-sm transition-none",
+                  // Square, but capped: in a wide panel the cells would otherwise grow huge.
+                  "aspect-square h-auto max-h-14 w-full rounded-md text-sm transition-none",
                   available && "font-medium hover:bg-primary hover:text-primary-foreground",
                   !available && "text-muted-foreground",
                 )}
@@ -115,11 +132,18 @@ export function MonthCalendar(props: Props) {
         )}
         {props.preferences}
       </section>
-      <section aria-label="Choose a time">
+      <section ref={timesRef} aria-label="Choose a time" className="scroll-mt-4">
         {selectedDate ? (
           <>
             <h2 className="mb-3 text-sm font-medium">{formatDateLong(byDate.get(selectedDate)?.[0]?.start ?? props.nowMs, prefs)}</h2>
-            <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto">
+            {/* Below the calendar: a compact grid, no scroll box inside the scrolling page.
+                Beside it: a column that scrolls within the calendar's height. */}
+            <ul
+              className={cn(
+                "grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2",
+                !props.stacked && "@xl/panel:flex @xl/panel:max-h-96 @xl/panel:flex-col @xl/panel:overflow-y-auto",
+              )}
+            >
               {(byDate.get(selectedDate) ?? []).map((s) => (
                 <li key={s.start}>
                   <SlotButton slot={s} prefs={prefs} seated={props.seated} className="w-full" onChoose={props.onChooseSlot} />

@@ -8,6 +8,43 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+### Added
+- **Assign all team members** for collective and round-robin event types: everyone in the team
+  hosts, including people who join later (added when they accept their invitation, removed when
+  they leave).
+- Team event types without hosts (which offer no times) are flagged on the event type page and the
+  team page.
+- Team bookings (collective and round robin) show a badge with the team's name on the dashboard
+  home and the Bookings page, and the Bookings page has a **Team** filter (personal only, or one
+  team). Who sees which booking is unchanged: hosts see the bookings they host.
+
+### Changed
+- Booking pages and embeds need much less scrolling. The layout follows the booking widget's own
+  width instead of the window's, so popups and narrow host columns get the side-by-side calendar
+  and times (with day cells capped in size) instead of a stretched calendar with the times pushed
+  below it. On phones the event header is compact, the time zone and clock format fold into one
+  line, the day's times show as a grid and scroll into view as soon as a day is picked.
+- The booking form is shorter: guests and notes open from **Add guests** / **Add a note** (they
+  stay open when prefilled), and on phones the confirm button stays at the bottom of the screen.
+- Popup embeds fit their content instead of a fixed height (no empty space below short pages), and
+  open full screen on phones with the close button inside the screen.
+- **Request reschedule** on the Bookings page no longer cancels the booking. The invitee gets a
+  "Please pick a new time" email with a link that opens the booking page in reschedule mode (their
+  details filled in); the meeting keeps its time, marked **New time requested**, until they pick a
+  new one. A confirmation dialog states that the email will be sent before anything goes out.
+  Not offered for recurring series, seated events or event types with rescheduling turned off.
+
+### Fixed
+- Inline embeds now shrink when their content gets shorter (e.g. from the calendar to the booking
+  form); before, the iframe could only grow and left an empty gap on the host page.
+- Popup embeds opened from a partner site's own dialog (Radix, Headless UI and similar modal
+  libraries) could not be tapped or clicked on phones: the popup inherited the host page's
+  `body { pointer-events: none }` lock. The popup now always receives input, whatever the host
+  page does.
+- **Reschedule** and **Book again** on the booking confirmation page opened the organizer's
+  personal URL for team (collective and round-robin) event types, which returned 404. They now
+  open the team's booking page (`/team/{team}/{slug}`).
+
 ## [1.2.0] - 2026-10-01
 
 ### Added

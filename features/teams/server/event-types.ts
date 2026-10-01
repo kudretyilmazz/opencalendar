@@ -123,24 +123,61 @@ async function assertMembers(tx: Database | Tx, teamId: string, userIds: string[
   if (rows.length !== new Set(userIds).size) throw new TeamError("NOT_A_HOST");
 }
 
-/** TEAM-004…007: replaces the host list of a collective or round-robin event type. */
+/** Default host settings for a member added without explicit ones (assign-all, joining later). */
+const defaultHost = (userId: string, collective: boolean): HostForm => ({ userId, isFixed: collective, weight: 100, priority: 2 });
+
+async function teamMemberIds(tx: Database | Tx, teamId: string): Promise<string[]> {
+  const rows = await tx.select({ userId: membership.userId }).from(membership).where(eq(membership.teamId, teamId)).orderBy(asc(membership.createdAt), asc(membership.userId));
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * TEAM-004…007: replaces the host list of a collective or round-robin event type. With
+ * `assignAll`, every current member becomes a host (keeping any settings sent for them) and
+ * people who join later are added when they accept their invitation (addToAssignAllEventTypes).
+ */
 export async function setHosts(
   db: Database,
   actorId: string,
   teamId: string,
   id: string,
-  input: { hosts: HostForm[]; roundRobinWindowDays: number },
+  input: { hosts: HostForm[]; roundRobinWindowDays: number; assignAll?: boolean },
 ): Promise<void> {
   const et = await getTeamEventType(db, actorId, teamId, id);
   if (et.schedulingType === "managed") throw new TeamError("FORBIDDEN", "managed");
-  // Collective: everyone attends, so every host is fixed.
-  const hosts = input.hosts.map((h) => (et.schedulingType === "collective" ? { ...h, isFixed: true } : h));
+  const collective = et.schedulingType === "collective";
   await db.transaction(async (tx) => {
+    const chosen = input.assignAll
+      ? (await teamMemberIds(tx, teamId)).map((userId) => input.hosts.find((h) => h.userId === userId) ?? defaultHost(userId, collective))
+      : input.hosts;
+    // Collective: everyone attends, so every host is fixed.
+    const hosts = chosen.map((h) => (collective ? { ...h, isFixed: true } : h));
     await assertMembers(tx, teamId, hosts.map((h) => h.userId));
     await tx.delete(eventTypeHost).where(eq(eventTypeHost.eventTypeId, id));
     if (hosts.length) await tx.insert(eventTypeHost).values(hosts.map((h, position) => ({ ...h, eventTypeId: id, position })));
-    await tx.update(eventType).set({ roundRobinWindowDays: input.roundRobinWindowDays }).where(eq(eventType.id, id));
+    await tx
+      .update(eventType)
+      .set({ roundRobinWindowDays: input.roundRobinWindowDays, assignAllTeamMembers: Boolean(input.assignAll) })
+      .where(eq(eventType.id, id));
   });
+}
+
+/**
+ * A member joined: make them a host of the team's "assign all team members" event types
+ * (inside the joining transaction). Removal already drops their host rows (removal.ts).
+ */
+export async function addToAssignAllEventTypes(tx: Tx, teamId: string, userId: string): Promise<void> {
+  const types = await tx
+    .select({ id: eventType.id, schedulingType: eventType.schedulingType })
+    .from(eventType)
+    .where(and(eq(eventType.teamId, teamId), eq(eventType.assignAllTeamMembers, true), ne(eventType.schedulingType, "managed")));
+  for (const et of types) {
+    const [{ value }] = await tx.select({ value: max(eventTypeHost.position) }).from(eventTypeHost).where(eq(eventTypeHost.eventTypeId, et.id));
+    await tx
+      .insert(eventTypeHost)
+      .values({ ...defaultHost(userId, et.schedulingType === "collective"), eventTypeId: et.id, position: (value ?? -1) + 1 })
+      .onConflictDoNothing();
+  }
 }
 
 // ---------------------------------------------------------------------------- managed (TEAM-008)

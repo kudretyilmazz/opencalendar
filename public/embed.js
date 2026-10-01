@@ -124,12 +124,41 @@
     if (!modal) return;
     var m = modal;
     modal = null;
+    w.removeEventListener("resize", m.onResize);
     d.removeEventListener("keydown", m.onKey, true);
     d.removeEventListener("focusin", m.onFocus, true);
     forget(m.frame);
     if (m.overlay.parentNode) m.overlay.parentNode.removeChild(m.overlay);
     d.body.style.overflow = m.overflow;
     if (m.restore && typeof m.restore.focus === "function") m.restore.focus();
+  }
+
+  // Phones get the popup full screen: every pixel goes to the booking page (less scrolling).
+  var PHONE = "(max-width: 639px)";
+  var POPUP_MAX_HEIGHT = 760;
+
+  /** Sizes the popup: full screen on phones; elsewhere as tall as its content, within the screen. */
+  function layoutPopup(m) {
+    var phone = w.matchMedia && w.matchMedia(PHONE).matches;
+    css(
+      m.overlay,
+      "position:fixed;top:0;right:0;bottom:0;left:0;z-index:" + Z + ";pointer-events:auto;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:" +
+        (phone ? "0" : "16px"),
+    );
+    var height = phone ? "100%" : m.contentHeight ? "min(" + Math.min(m.contentHeight, POPUP_MAX_HEIGHT) + "px,100%)" : "min(" + POPUP_MAX_HEIGHT + "px,100%)";
+    css(
+      m.dialog,
+      "position:relative;width:100%;max-width:" + (phone ? "none" : "1000px") + ";height:" + height + ";border-radius:" + (phone ? "0" : "12px") +
+        ";box-shadow:0 20px 50px rgba(0,0,0,.35);transition:height .15s ease-out;background:" + m.background,
+    );
+    css(m.frame, "display:block;width:100%;height:100%;border:0;border-radius:" + (phone ? "0" : "12px"));
+    // On a phone the close button sits inside the screen, with a 44px touch target.
+    css(
+      m.close,
+      phone
+        ? "position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;font:24px/44px sans-serif;padding:0;background:rgba(255,255,255,.9);color:#111;box-shadow:0 1px 4px rgba(0,0,0,.25)"
+        : "position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;font:20px/32px sans-serif;padding:0;background:#fff;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.3)",
+    );
   }
 
   /** EMB-002: accessible modal dialog with the booking page. */
@@ -139,23 +168,16 @@
     var config = opts.config || {};
     var dark = config.theme === "dark" || (config.theme !== "light" && w.matchMedia && w.matchMedia("(prefers-color-scheme: dark)").matches);
     var frame = createFrame(opts.calLink, config);
-    css(frame, "display:block;width:100%;height:100%;border:0;border-radius:12px");
-    var overlay = css(
-      d.createElement("div"),
-      "position:fixed;top:0;right:0;bottom:0;left:0;z-index:" + Z + ";background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px",
-    );
-    var dialog = css(
-      d.createElement("div"),
-      "position:relative;width:100%;max-width:1000px;height:min(760px,100%);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.35);background:" +
-        (dark ? "#0b0b0f" : "#fff"),
-    );
+    // The overlay sets pointer-events:auto (layoutPopup): it must not inherit a host page's lock.
+    // Modal libraries (Radix, Headless UI…) set body { pointer-events: none } while their dialog is
+    // open or closing, and a partner site often opens this popup from such a dialog; inheriting it
+    // left every tap inside the popup dead, which iOS Safari can keep even after the lock lifts.
+    var overlay = d.createElement("div");
+    var dialog = d.createElement("div");
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", opts.label || "Book a meeting");
-    var close = css(
-      d.createElement("button"),
-      "position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;font:20px/32px sans-serif;padding:0;background:#fff;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.3)",
-    );
+    var close = d.createElement("button");
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.textContent = "×";
@@ -169,6 +191,13 @@
     modal = {
       frame: frame,
       overlay: overlay,
+      dialog: dialog,
+      close: close,
+      background: dark ? "#0b0b0f" : "#fff",
+      contentHeight: 0,
+      onResize: function () {
+        if (modal) layoutPopup(modal);
+      },
       overflow: d.body.style.overflow,
       restore: d.activeElement,
       onKey: function (e) {
@@ -185,6 +214,8 @@
         if (!dialog.contains(e.target)) close.focus();
       },
     };
+    layoutPopup(modal);
+    w.addEventListener("resize", modal.onResize);
     d.addEventListener("keydown", modal.onKey, true);
     d.addEventListener("focusin", modal.onFocus, true);
     d.body.style.overflow = "hidden";
@@ -258,8 +289,14 @@
     if (!frame) return;
     var data = msg.data && typeof msg.data === "object" ? msg.data : {};
     var height = Number(data.height);
-    // EMB-005: inline frames grow and shrink with the booking page.
-    if (msg.type === "dimensionsChanged" && frame.ocInline && height > 0 && height < 100000) frame.style.height = Math.ceil(height) + "px";
+    // EMB-005: inline frames grow and shrink with the booking page; the popup fits its content.
+    if (msg.type === "dimensionsChanged" && height > 0 && height < 100000) {
+      if (frame.ocInline) frame.style.height = Math.ceil(height) + "px";
+      else if (modal && modal.frame === frame) {
+        modal.contentHeight = Math.ceil(height);
+        layoutPopup(modal);
+      }
+    }
     dispatch({ type: msg.type, data: data, version: VERSION, iframe: frame });
   });
 

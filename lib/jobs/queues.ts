@@ -80,6 +80,17 @@ export const emailContent = z.discriminatedUnion("template", [
     props: z.object({ name, provider: z.string().max(100), account: z.string().max(300), url }),
   }),
   z.object({
+    /** BKG-010: the host asks the booker to pick a new time; the booking stays until they do. */
+    template: z.literal("reschedule-requested"),
+    props: bookingView.omit({ ics: true }).extend({
+      message: z.string().max(500).optional(),
+      /** The booking page in reschedule mode, with the booker's manage token. */
+      rescheduleUrl: url,
+      /** Tokenized manage page (keep or cancel the booking instead). */
+      manageUrl: url,
+    }),
+  }),
+  z.object({
     template: z.literal("booking-cancelled"),
     props: bookingView.extend({
       /** Omitted for the host when only one seat left a seated booking. */

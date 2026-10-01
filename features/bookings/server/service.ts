@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Database, Tx } from "@/db/client";
-import { attendee, booking, bookingHost, bookingReference, eventType, eventTypeQuestion, slotReservation, user } from "@/db/schema";
+import { attendee, booking, bookingHost, bookingReference, eventType, eventTypeQuestion, slotReservation, team, user } from "@/db/schema";
 import { computeSlots, computeTeamSlots, isSlotAvailable, type TeamHostInput, type TeamSlot } from "@/lib/availability";
 import type { HostInput, Interval, Slot } from "@/lib/availability/types";
 import { hashToken, newId, tokenMatches } from "@/lib/ids";
 import { durationsOf, type EventTypeView, type PublicHost, toEngineEvent } from "@/features/event-types/server/service";
 import { type ScheduleView, scheduleForEventType, toScheduleInput } from "@/features/schedules/server/service";
 import { ACTIVE, assertPlausibleStart, BookingFailure, type AttendeeRow, type BookingRow, deactivate, type ExternalBusyFn, HOLD_TTL_MS, isHostOf, MIN, validationWindow, withExternal } from "./core";
+import { canRequestReschedule } from "../reschedulable";
 import { attendeeMayCancel, findSeat, lockSeries, policyFor } from "./decisions";
 import { invalidateHostDisplayCache, loadHostInput, loadHostInputForDisplay, refreshDisplay } from "./host-data";
 
@@ -385,7 +386,18 @@ export async function listFutureActiveBookingIds(db: Database, hostId: string, n
 export const BOOKING_TABS = ["upcoming", "unconfirmed", "past", "cancelled"] as const;
 export type BookingTab = (typeof BOOKING_TABS)[number];
 
-export type HostBookingFilter = { tab: BookingTab; eventTypeId?: string; from?: number; to?: number; now: number };
+/** `team`: a team id, or PERSONAL_BOOKINGS for bookings of personal event types. */
+export type HostBookingFilter = { tab: BookingTab; eventTypeId?: string; team?: string; from?: number; to?: number; now: number };
+
+export const PERSONAL_BOOKINGS = "personal";
+
+/** Narrows to one team's event types, or to personal ones. Never widens: the host check still applies. */
+function teamWhere(teamFilter: string | undefined) {
+  if (!teamFilter) return undefined;
+  return teamFilter === PERSONAL_BOOKINGS
+    ? sql`NOT EXISTS (SELECT 1 FROM event_type et WHERE et.id = ${booking.eventTypeId} AND et.team_id IS NOT NULL)`
+    : sql`EXISTS (SELECT 1 FROM event_type et WHERE et.id = ${booking.eventTypeId} AND et.team_id = ${teamFilter})`;
+}
 
 /**
  * Which bookings a tab shows. Upcoming includes requests still waiting for the host's decision
@@ -405,6 +417,7 @@ function filterWhere(hostId: string, filter: Omit<HostBookingFilter, "tab">) {
   return and(
     isHostOf(hostId),
     filter.eventTypeId ? eq(booking.eventTypeId, filter.eventTypeId) : undefined,
+    teamWhere(filter.team),
     filter.from !== undefined ? gte(booking.startAt, new Date(filter.from)) : undefined,
     filter.to !== undefined ? lt(booking.startAt, new Date(filter.to)) : undefined,
   );
@@ -412,9 +425,10 @@ function filterWhere(hostId: string, filter: Omit<HostBookingFilter, "tab">) {
 
 export async function listHostBookings(db: Database, hostId: string, filter: HostBookingFilter) {
   const rows = await db
-    .select({ booking, eventTitle: eventType.title })
+    .select({ booking, eventTitle: eventType.title, teamName: team.name, disableRescheduling: eventType.disableRescheduling, seatsPerSlot: eventType.seatsPerSlot })
     .from(booking)
     .innerJoin(eventType, eq(eventType.id, booking.eventTypeId))
+    .leftJoin(team, eq(team.id, eventType.teamId))
     .where(and(filterWhere(hostId, filter), tabWhere(filter.tab, new Date(filter.now))))
     .orderBy(filter.tab === "upcoming" || filter.tab === "unconfirmed" ? asc(booking.startAt) : desc(booking.startAt))
     .limit(200);
@@ -434,6 +448,10 @@ export async function listHostBookings(db: Database, hostId: string, filter: Hos
   return rows.map((r) => ({
     ...r.booking,
     eventTitle: r.eventTitle,
+    /** Team event types: the team, shown as a badge (null for personal event types). */
+    teamName: r.teamName,
+    /** The invitee could move it with an emailed link (BKG-010 "Request reschedule"). */
+    canRequestReschedule: canRequestReschedule(r.booking, r),
     attendees: attendees.filter((a) => a.bookingId === r.booking.id),
     /** An external calendar/meeting couldn't be updated for this booking (INT-012). */
     syncFailed: failedIds.has(r.booking.id),

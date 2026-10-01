@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { getDb } from "@/db/client";
 import { CancelBookingForm, LocalTime } from "@/features/bookings/components/manage-booking";
 import { mapLink } from "@/features/bookings/location";
+import { bookingPagePath } from "@/features/bookings/server/booking-path";
 import { attendeeMayCancel, remainingOccurrences } from "@/features/bookings/server/decisions";
 import { findBookingForManage } from "@/features/bookings/server/service";
 import { googleCalendarUrl, outlookCalendarUrl } from "@/lib/calendar-links";
@@ -41,6 +42,9 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
   const selfCancel = attendeeMayCancel(eventType, start, now);
   const selfReschedule = found.canManage && !eventType.disableRescheduling && !b.recurringSeriesId && selfCancel;
   const series = found.canManage && b.recurringSeriesId ? await remainingOccurrences(getDb(), b.recurringSeriesId, now) : [];
+  // Where to book this event type again: /team/{team}/{slug} for team event types, not the
+  // organizer's own page (that one 404s for them). Only looked up when a link is shown.
+  const bookingPath = selfReschedule || cancelled ? await bookingPagePath(getDb(), b.eventTypeId, b.organizerId) : null;
   const location = canManage ? b.locationValue : null;
   const icsUrl = `/api/bookings/${encodeURIComponent(uid)}/ics${tokenValue ? `?token=${encodeURIComponent(tokenValue)}` : ""}`;
   // Without the manage token nobody learns who booked: show the event type, not the booking title.
@@ -146,9 +150,9 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
           <>
           <Separator />
           <div className="flex flex-wrap items-start gap-2">
-            {selfReschedule && (
+            {selfReschedule && bookingPath && (
               <Button asChild>
-                <Link href={`/${host.username}/${eventType.slug}?reschedule=${encodeURIComponent(uid)}&token=${encodeURIComponent(tokenValue)}`}>Reschedule</Link>
+                <Link href={`${bookingPath}?reschedule=${encodeURIComponent(uid)}&token=${encodeURIComponent(tokenValue)}`}>Reschedule</Link>
               </Button>
             )}
             <CancelBookingForm uid={uid} token={tokenValue} label={seat ? "Cancel my seat" : pending ? "Withdraw request" : "Cancel booking"} series={series.length > 1} />
@@ -160,11 +164,11 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
           <p className="text-sm text-muted-foreground">This booking can’t be changed online anymore. Please contact {host.name} directly.</p>
           </>
         ))}
-        {cancelled && host.username && (
+        {cancelled && bookingPath && (
           <Alert>
             <AlertDescription>
               Need a new time?{" "}
-              <Link className="font-medium" href={`/${host.username}/${eventType.slug}`}>
+              <Link className="font-medium" href={bookingPath}>
                 Book again
               </Link>
             </AlertDescription>

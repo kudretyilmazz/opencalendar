@@ -133,9 +133,13 @@ export default async function TeamPage({ params }: PageProps<"/teams/[id]">) {
                     )}
                     <Badge variant="muted">{SCHEDULING_LABELS[et.schedulingType!].split(" —")[0]}</Badge>
                     {!et.enabled && <Badge variant="outline">Off</Badge>}
+                    {et.schedulingType !== "managed" && et.hosts.length === 0 && (
+                      // Without hosts the booking page shows no times at all.
+                      <Badge variant="danger">No hosts · no times offered</Badge>
+                    )}
                   </span>
                   <span className="text-[13px] text-muted-foreground">
-                    {et.hosts.length} host{et.hosts.length === 1 ? "" : "s"}
+                    {et.assignAllTeamMembers ? "All team members" : `${et.hosts.length} host${et.hosts.length === 1 ? "" : "s"}`}
                     {et.schedulingType !== "managed" && (
                       <>
                         {" · "}

@@ -129,6 +129,8 @@ export const eventType = pgTable(
     lockedFields: jsonb("locked_fields").$type<string[]>().notNull().default([]),
     /** TEAM-005: round robin counts each host's bookings over this many recent days. */
     roundRobinWindowDays: integer("round_robin_window_days").notNull().default(30),
+    /** Collective/round robin: every team member is a host, including people who join later. */
+    assignAllTeamMembers: boolean("assign_all_team_members").notNull().default(false),
     title: text("title").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
@@ -346,6 +348,9 @@ export const booking = pgTable(
     notes: text("notes"),
     rescheduledFromId: text("rescheduled_from_id"),
     rescheduled: boolean("rescheduled").notNull().default(false),
+    /** BKG-010: the host asked the attendee to pick a new time; the booking stays until they do. */
+    rescheduleRequestedAt: timestamp("reschedule_requested_at", { withTimezone: true }),
+    rescheduleRequestMessage: text("reschedule_request_message"),
     cancellationReason: text("cancellation_reason"),
     cancelledBy: cancelledBy("cancelled_by"),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
