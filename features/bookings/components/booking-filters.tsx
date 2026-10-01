@@ -17,7 +17,12 @@ const ALL_EVENT_TYPES = "__all";
 
 type WeekDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export type BookingFilterValues = { tab: string; eventType?: string; from?: string; to?: string };
+export type BookingFilterValues = { tab: string; eventType?: string; team?: string; from?: string; to?: string };
+
+/** Radix Select needs a non-empty value; this one means "personal and team bookings". */
+const ALL_BOOKINGS = "__all";
+/** Matches PERSONAL_BOOKINGS in the bookings service. */
+const PERSONAL = "personal";
 
 const control = "h-11 rounded-md border-input bg-card px-3 text-sm font-normal md:h-10";
 
@@ -25,6 +30,7 @@ const control = "h-11 rounded-md border-input bg-card px-3 text-sm font-normal m
 function bookingsUrl(values: BookingFilterValues): string {
   const params = new URLSearchParams({ tab: values.tab });
   if (values.eventType) params.set("eventType", values.eventType);
+  if (values.team) params.set("team", values.team);
   if (values.from) params.set("from", values.from);
   if (values.to) params.set("to", values.to);
   return `/bookings?${params}`;
@@ -47,11 +53,14 @@ function rangeLabel(from?: string, to?: string): string | null {
 export function BookingFilters({
   values,
   eventTypes,
+  teams = [],
   weekStartsOn,
   children,
 }: {
   values: BookingFilterValues;
   eventTypes: { id: string; title: string }[];
+  /** The host's teams; with none, the team filter is left out. */
+  teams?: { id: string; name: string }[];
   weekStartsOn?: number;
   /** Right-aligned summary of the filtered list. */
   children?: ReactNode;
@@ -63,7 +72,7 @@ export function BookingFilters({
   const go = (next: Partial<BookingFilterValues>) =>
     startTransition(() => router.push(bookingsUrl({ ...values, ...next })));
   const label = rangeLabel(values.from, values.to);
-  const filtered = Boolean(values.eventType || values.from || values.to);
+  const filtered = Boolean(values.eventType || values.team || values.from || values.to);
 
   const openChange = (next: boolean) => {
     if (next) setDraft({ from: parseIsoDate(values.from), to: parseIsoDate(values.to ?? values.from) });
@@ -99,6 +108,26 @@ export function BookingFilters({
           ))}
         </SelectContent>
       </Select>
+      {teams.length > 0 && (
+        <Select value={values.team ?? ALL_BOOKINGS} onValueChange={(v) => go({ team: v === ALL_BOOKINGS ? undefined : v })}>
+          <SelectTrigger
+            id="filter-team"
+            aria-label="Team"
+            className={cn(control, "w-full data-[size=default]:h-11 md:w-[200px] md:data-[size=default]:h-10")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_BOOKINGS}>Personal and team</SelectItem>
+            <SelectItem value={PERSONAL}>Personal only</SelectItem>
+            {teams.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Popover open={open} onOpenChange={openChange}>
         <PopoverTrigger asChild>
           <Button

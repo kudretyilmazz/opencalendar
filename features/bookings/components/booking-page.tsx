@@ -63,8 +63,10 @@ export async function BookingPageView({ target, query }: { target: BookingTarget
   const brand = brandStyle(brandColor);
 
   return (
-    <main className={cn("mx-auto flex w-full flex-1 flex-col", embed ? "max-w-5xl bg-background p-0 text-foreground" : "max-w-5xl px-4 py-10", theme)} style={brand}>
-      <Card className={cn("gap-0 py-0", embed ? "rounded-none shadow-none ring-0" : "shadow-sm")}>
+    <main className={cn("mx-auto flex w-full flex-1 flex-col", embed ? "max-w-5xl bg-background p-0 text-foreground" : "max-w-5xl px-3 py-3 sm:px-4 sm:py-10", theme)} style={brand}>
+      {/* overflow-clip, not the card's overflow-hidden: it still rounds the corners but creates no
+          scroll container, so the form's sticky confirm button sticks to the screen on phones. */}
+      <Card className={cn("gap-0 overflow-clip py-0", embed ? "rounded-none border-0 shadow-none ring-0" : "shadow-sm")}>
         <BookingWidget
           title={eventType.title}
           hostName={target.displayName}

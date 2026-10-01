@@ -1,6 +1,7 @@
 import { MapPin, Phone, Video } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { TeamBadge } from "@/features/teams/components/team-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDate, localDateOf, wallToUtc } from "@/lib/availability/tz";
@@ -46,6 +47,7 @@ function BookingRow({ b, prefs, nextId, now }: { b: OverviewBooking; prefs: Form
           </span>
           <span className="hidden truncate text-sm text-muted-foreground md:inline">with {who}</span>
           {badge && <span className="hidden md:inline-flex">{badge}</span>}
+          {b.teamName && <TeamBadge name={b.teamName} className="shrink-0" />}
         </div>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           <Icon className="hidden size-3.5 shrink-0 md:block" aria-hidden />

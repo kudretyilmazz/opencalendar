@@ -262,16 +262,18 @@ export function BookingWidget(props: BookingWidgetProps) {
   // main content (NFR-003 LCP); only the calendar needs the browser's time zone and locale.
   if (!ready || !month || !week || !range) {
     return (
-      <div className="grid gap-0 md:grid-cols-[260px_1fr]">
-        {details}
-        <div className="p-6" aria-busy="true">
-          <span className="sr-only">Loading availability…</span>
-          <div className="flex max-w-md flex-col gap-3" aria-hidden>
-            <Skeleton className="h-6 w-40" />
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: 35 }, (_, i) => (
-                <Skeleton key={i} className="aspect-square" />
-              ))}
+      <div className="@container/booker">
+        <div className="grid gap-0 @3xl/booker:grid-cols-[260px_1fr]">
+          {details}
+          <div className="p-4 @lg/booker:p-6" aria-busy="true">
+            <span className="sr-only">Loading availability…</span>
+            <div className="flex max-w-md flex-col gap-3" aria-hidden>
+              <Skeleton className="h-6 w-40" />
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: 35 }, (_, i) => (
+                  <Skeleton key={i} className="aspect-square max-h-12" />
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -313,86 +315,90 @@ export function BookingWidget(props: BookingWidgetProps) {
   );
 
   return (
-    <div className={cn("grid gap-0", !stacked && "md:grid-cols-[260px_1fr]")}>
-      {details}
-      <div className="min-w-0 p-6">
-        {selectedSlot ? (
-          <BookingForm
-            config={form}
-            slot={selectedSlot}
-            duration={duration}
-            prefs={prefs}
-            tokens={() => ({ hold: holdToken.current, idempotencyKey: idempotencyKey.current })}
-            onBack={() => setSelectedSlot(null)}
-            onTaken={() => {
-              setSelectedSlot(null);
-              void load();
-            }}
-          />
-        ) : (
-          <>
-            {!narrow && (
-              <div className="mb-4 flex justify-end">
-                <LayoutSwitcher value={layout} onChange={changeLayout} />
-              </div>
-            )}
-            {slotNotice !== null && (
-              <Alert className="mb-4">
-                <AlertDescription>That time is no longer available — pick another time on {formatWeekdayDate(slotNotice, prefs)}.</AlertDescription>
-              </Alert>
-            )}
-            {shown === "week" ? (
-              <WeekCalendar
-                week={week}
-                firstWeek={startOfWeek(today, hostWeekStart)}
-                prefs={prefs}
-                byDate={byDate}
-                selectedDate={selectedDate}
-                busy={busy}
-                loading={loading}
-                loadError={loadError}
-                seated={props.seated}
-                preferences={preferences}
-                onChangeWeek={(delta) => {
-                  setWeek(addDays(week, 7 * delta));
-                  setSlotNotice(null);
-                }}
-                onChooseSlot={(slot) => {
-                  emitEmbed("dateSelected", { date: formatDate(localDateOf(slot.start, timeZone)) });
-                  void chooseSlot(slot);
-                }}
-              />
-            ) : (
-              <MonthCalendar
-                month={month}
-                today={today}
-                weekStart={browserWeekStart(locale)}
-                prefs={prefs}
-                byDate={byDate}
-                selectedDate={selectedDate}
-                busy={busy}
-                loading={loading}
-                loadError={loadError}
-                empty={slots.length === 0}
-                seated={props.seated}
-                stacked={shown === "column"}
-                nowMs={nowMs}
-                preferences={preferences}
-                onChangeMonth={(delta) => {
-                  setMonth(shiftMonth(month, delta));
-                  setSelectedDate(null);
-                  setSlotNotice(null);
-                }}
-                onSelectDate={(key) => {
-                  setSelectedDate(key);
-                  setSlotNotice(null);
-                  emitEmbed("dateSelected", { date: key });
-                }}
-                onChooseSlot={(slot) => void chooseSlot(slot)}
-              />
-            )}
-          </>
-        )}
+    // Layout follows the booker's own width (container queries), not the window's: in a popup or a
+    // narrow host column the window can be wide while the booker is not.
+    <div className="@container/booker">
+      <div className={cn("grid gap-0", !stacked && "@3xl/booker:grid-cols-[260px_1fr]")}>
+        {details}
+        <div className="@container/panel min-w-0 p-4 @lg/booker:p-6">
+          {selectedSlot ? (
+            <BookingForm
+              config={form}
+              slot={selectedSlot}
+              duration={duration}
+              prefs={prefs}
+              tokens={() => ({ hold: holdToken.current, idempotencyKey: idempotencyKey.current })}
+              onBack={() => setSelectedSlot(null)}
+              onTaken={() => {
+                setSelectedSlot(null);
+                void load();
+              }}
+            />
+          ) : (
+            <>
+              {!narrow && (
+                <div className="mb-4 flex justify-end">
+                  <LayoutSwitcher value={layout} onChange={changeLayout} />
+                </div>
+              )}
+              {slotNotice !== null && (
+                <Alert className="mb-4">
+                  <AlertDescription>That time is no longer available — pick another time on {formatWeekdayDate(slotNotice, prefs)}.</AlertDescription>
+                </Alert>
+              )}
+              {shown === "week" ? (
+                <WeekCalendar
+                  week={week}
+                  firstWeek={startOfWeek(today, hostWeekStart)}
+                  prefs={prefs}
+                  byDate={byDate}
+                  selectedDate={selectedDate}
+                  busy={busy}
+                  loading={loading}
+                  loadError={loadError}
+                  seated={props.seated}
+                  preferences={preferences}
+                  onChangeWeek={(delta) => {
+                    setWeek(addDays(week, 7 * delta));
+                    setSlotNotice(null);
+                  }}
+                  onChooseSlot={(slot) => {
+                    emitEmbed("dateSelected", { date: formatDate(localDateOf(slot.start, timeZone)) });
+                    void chooseSlot(slot);
+                  }}
+                />
+              ) : (
+                <MonthCalendar
+                  month={month}
+                  today={today}
+                  weekStart={browserWeekStart(locale)}
+                  prefs={prefs}
+                  byDate={byDate}
+                  selectedDate={selectedDate}
+                  busy={busy}
+                  loading={loading}
+                  loadError={loadError}
+                  empty={slots.length === 0}
+                  seated={props.seated}
+                  stacked={shown === "column"}
+                  nowMs={nowMs}
+                  preferences={preferences}
+                  onChangeMonth={(delta) => {
+                    setMonth(shiftMonth(month, delta));
+                    setSelectedDate(null);
+                    setSlotNotice(null);
+                  }}
+                  onSelectDate={(key) => {
+                    setSelectedDate(key);
+                    setSlotNotice(null);
+                    emitEmbed("dateSelected", { date: key });
+                  }}
+                  onChooseSlot={(slot) => void chooseSlot(slot)}
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

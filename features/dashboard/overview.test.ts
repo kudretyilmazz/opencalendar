@@ -28,6 +28,7 @@ const booking = (start: string, minutes: number, extra: Partial<OverviewBooking>
   startAt: at(start),
   endAt: at(start) + minutes * 60_000,
   eventTitle: "Product demo",
+  teamName: null,
   attendeeName: "Maya Chen",
   locationKind: "jitsi",
   locationValue: "https://meet.jit.si/oc-abc",

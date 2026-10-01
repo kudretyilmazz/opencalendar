@@ -31,13 +31,14 @@ export function BookingDetails(props: Props) {
   return (
     <aside
       className={cn(
-        "flex flex-col gap-3 border-b border-border p-6",
-        !props.stacked && "md:border-b-0 md:border-r",
+        // Compact on phones: the calendar should start as high on the screen as possible.
+        "flex flex-col gap-1.5 border-b border-border px-4 py-3 @lg/booker:gap-3 @lg/booker:p-6",
+        !props.stacked && "@3xl/booker:border-b-0 @3xl/booker:border-r",
         props.hideDetails && "sr-only",
       )}
     >
       <p className="text-sm text-muted-foreground">{props.hostName}</p>
-      <h1 className="text-xl font-semibold">{props.title}</h1>
+      <h1 className="text-lg font-semibold @lg/booker:text-xl">{props.title}</h1>
       {ready && form.reschedule && (
         <Alert>
           <AlertDescription>

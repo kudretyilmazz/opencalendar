@@ -58,8 +58,12 @@ All hosts attend each booking. A time is offered only when all of them are free.
 
 **How it works:**
 1. On the team page, click **New collective** and set up the event type.
-2. Under **Hosts**, tick the members who attend and click **Save hosts**.
+2. Under **Hosts**, tick the members who attend, or turn on **Assign all team members**, and click **Save hosts**.
 3. A time is available only when every host is free.
+
+A new team event type has no hosts, so its booking page shows no times until you add some. The event type page and the team page warn about this (**No hosts · no times offered**).
+
+**Assign all team members** makes everyone in the team a host, including people who join later (they're added when they accept their invitation, and removed when they leave). For collective event types this means a time is offered only when the whole team is free, which gets harder as the team grows. Turning it off keeps today's hosts; tick or untick members from there.
 
 ### Round robin
 
@@ -69,7 +73,7 @@ Each booking goes to one free host from the pool. Bookers see a time if any pool
 
 **How it works:**
 1. On the team page, click **New round robin**.
-2. Under **Hosts**, tick the members in the pool. For each, set a **Weight** (their share of bookings) and a **Priority** (lowest, low, medium, high, highest).
+2. Under **Hosts**, tick the members in the pool (or turn on **Assign all team members** to include everyone, now and later). For each, set a **Weight** (their share of bookings) and a **Priority** (lowest, low, medium, high, highest).
 3. Set **Balance over the last (days)** (default 30): bookings in this period count when balancing.
 4. Optionally tick **Fixed** for hosts who attend every booking in addition to the rotating host.
 5. Click **Save hosts**.

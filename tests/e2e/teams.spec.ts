@@ -76,6 +76,12 @@ test("round robin assigns each booking to the correct host (flow 7)", async ({ b
   const firstEmail = await book(guest, `/team/${teamSlug}/team-intro`, "First Guest");
   await expect(guest.getByText("Rui Robin", { exact: true })).toBeVisible();
   await expectAccessible(guest);
+
+  // Rescheduling from the confirmation page opens the team's booking page, not the host's (BKG-009).
+  const reschedule = guest.getByRole("link", { name: "Reschedule" });
+  await expect(reschedule).toHaveAttribute("href", new RegExp(`^/team/${teamSlug}/team-intro\\?reschedule=`));
+  await reschedule.click();
+  await expect(guest.getByText(/Rescheduling your booking from/)).toBeVisible();
   await waitForEmail(firstEmail, /^Confirmed: Team intro/);
   await waitForEmail(memberEmail, /^Confirmed: Team intro/);
 
@@ -83,13 +89,48 @@ test("round robin assigns each booking to the correct host (flow 7)", async ({ b
   await book(guest, `/team/${teamSlug}/team-intro`, "Second Guest");
   await expect(guest.getByText("Olga Owner", { exact: true })).toBeVisible();
 
+  // After cancelling, "Book again" also points at the team's booking page.
+  await guest.getByRole("button", { name: "Cancel booking" }).click();
+  await guest.getByRole("button", { name: "Confirm cancellation" }).click();
+  await expect(guest.getByRole("heading", { name: "This booking is cancelled" })).toBeVisible();
+  await expect(guest.getByRole("link", { name: "Book again" })).toHaveAttribute("href", `/team/${teamSlug}/team-intro`);
+
   // The assignment reason is on the host's dashboard; the availability view shows both members.
   await member.goto("/bookings");
   await expect(member.getByText("First Guest").first()).toBeVisible();
+  // Team bookings carry the team's badge, and the team filter separates them from personal ones.
+  await expect(member.getByText(`Team: Robin ${stamp}`).first()).toBeAttached();
+  await pickOption(member, member.getByLabel("Team", { exact: true }), "Personal only");
+  await expect(member).toHaveURL(/team=personal/);
+  await expect(member.getByText("First Guest")).toHaveCount(0);
+  await pickOption(member, member.getByLabel("Team", { exact: true }), `Robin ${stamp}`);
+  await expect(member.getByText("First Guest").first()).toBeVisible();
+  await expectAccessible(member);
   await owner.goto(`${teamPath}/availability`);
   await expect(owner.getByRole("rowheader", { name: /Rui Robin/ })).toBeVisible();
   await expect(owner.getByRole("rowheader", { name: /Olga Owner/ })).toBeVisible();
   await expectAccessible(owner);
+
+  // A new collective event type starts without hosts: both pages warn until hosts are set; "assign
+  // all team members" fixes it for everyone, including people who join later.
+  await owner.goto(`${teamPath}/event-types/new?type=collective`);
+  await owner.getByLabel("Title").fill("All hands");
+  await owner.getByRole("button", { name: "Create event type" }).click();
+  await expect(owner.getByRole("heading", { name: "All hands" })).toBeVisible();
+  await expect(owner.getByText(/No hosts yet, so the booking page shows no times/)).toBeVisible();
+  await owner.goto(teamPath);
+  await expect(owner.getByText("No hosts · no times offered")).toBeVisible();
+  await owner.getByRole("link", { name: "All hands" }).click();
+  await owner.getByRole("switch", { name: "Assign all team members" }).click();
+  await expect(owner.getByLabel("Rui Robin")).toBeChecked();
+  await expect(owner.getByLabel("Rui Robin")).toBeDisabled();
+  await owner.getByRole("button", { name: "Save hosts" }).click();
+  await expect(owner.getByText("Hosts saved.")).toBeVisible();
+  await expect(owner.getByText(/No hosts yet/)).toHaveCount(0);
+  await expectAccessible(owner);
+  await owner.goto(teamPath);
+  await expect(owner.getByText("No hosts · no times offered")).toHaveCount(0);
+  await expect(owner.getByText("All team members")).toBeVisible();
 
   await Promise.all([guestContext.close(), ownerContext.close(), memberContext.close()]);
 });

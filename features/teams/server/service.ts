@@ -7,7 +7,7 @@ import { newId } from "@/lib/ids";
 import type { TeamForm } from "../schemas";
 import { atLeast, requireTeamRole, roleIn, TeamError, type TeamRole } from "./access";
 import { hitAccountLimit } from "@/lib/auth/lockout";
-import { detachCopies } from "./event-types";
+import { addToAssignAllEventTypes, detachCopies } from "./event-types";
 
 /** Teams, members and invitations (TEAM-001…003). Every function checks the caller's role. */
 
@@ -205,6 +205,8 @@ export async function acceptInvitation(db: Database, invitee: Invitee, invitatio
     const inviterRole = invite.invitedBy ? await roleIn(tx, invite.invitedBy, invite.teamId) : null;
     const role = inviterRole && atLeast(inviterRole, invite.role) ? invite.role : "member";
     await tx.insert(membership).values({ teamId: invite.teamId, userId: invitee.id, role }).onConflictDoNothing();
+    // Event types set to "assign all team members" take new members on as hosts at once.
+    await addToAssignAllEventTypes(tx, invite.teamId, invitee.id);
     await tx.delete(teamInvitation).where(eq(teamInvitation.id, invite.id));
     return invite.teamId;
   });

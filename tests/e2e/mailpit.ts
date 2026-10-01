@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { randomInt } from "crypto";
 
 const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://localhost:8025";
 
@@ -34,4 +35,4 @@ export async function waitForEmailLink(to: string, subject: RegExp, pattern = /h
   return link!.replace(/[)\]>.,]+$/, "");
 }
 
-export const uniqueEmail = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
+export const uniqueEmail = (prefix: string) => `${prefix}-${Date.now()}-${randomInt(1_000_000)}@example.com`;

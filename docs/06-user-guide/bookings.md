@@ -35,11 +35,12 @@ Click **Bookings** in the menu. Times are shown in your time zone.
 
 ### Filter bookings
 
-Use the filters at the top to narrow down:
-- **Event type** — Show only bookings for a specific event type.
-- **From** / **To** — Show bookings in a date range.
+Use the filters at the top to narrow down (each applies as soon as you pick it):
+- **Event type** — Show only bookings for one of your event types.
+- **Team** (when you're in a team) — **Personal only**, or one team's bookings.
+- **Date range** — Show bookings in a date range.
 
-Click **Filter** to apply.
+Bookings of team event types (collective and round robin) carry a badge with the team's name, here and on the dashboard home. You see the team bookings you host: every collective booking of an event type you're a host of, and the round-robin bookings assigned to you.
 
 ### Booking details
 
@@ -57,7 +58,7 @@ Each booking card shows:
 For bookings in the **Upcoming** tab:
 
 - **Cancel** — Enter a reason (sent to the attendee) and click **Cancel booking**. The booking is cancelled and the attendee is notified by email.
-- **Request reschedule** — Optionally enter a message and click **Send request**. The booking is cancelled and the attendee gets an email with a link to book a new time.
+- **Request reschedule** — Asks the attendee to choose a new date and time. A dialog explains that the attendee will get an email with a link to pick a new time; optionally add a message, then click **Send email** to confirm (or **Don't send**). The booking is **not cancelled**: it keeps its time and shows **New time requested** until the attendee picks a new one, then it moves and everyone gets the updated invitation. If they don't respond, the meeting stays as booked — cancel it yourself if you can't attend. Not available for recurring series, seated events, or event types with online rescheduling turned off.
 
 ## Approve or reject pending bookings
 
@@ -121,5 +122,6 @@ If a booking couldn't be written to your calendar, its card says "Calendar sync 
 - **Confirmation email** — The booker, their guests and you get it, with a calendar invitation (.ics).
 - **Booking request email** — If the event type requires confirmation, the booker is told the request is waiting, and you get accept and reject links.
 - **Decision email** — When you accept, the booker gets the confirmation with the calendar invitation. When you reject, they get a rejection email with your reason, if you gave one.
-- **Cancellation email** — Sent when a booking is cancelled (by you or the attendee), with a calendar cancellation (.ics). When you use **Request reschedule**, it includes a link to book a new time.
+- **Cancellation email** — Sent when a booking is cancelled (by you or the attendee), with a calendar cancellation (.ics).
+- **New time request email** — When you use **Request reschedule**, the booker (not their guests) gets "Please pick a new time" with your message and a link that opens your booking page in reschedule mode with their details filled in.
 - **Reminders and other automatic emails** — Sent by the event type's [workflows](./event-types.md#workflows-and-reminders). Every new event type has a 24-hour reminder to attendees.

@@ -14,6 +14,8 @@ export type OverviewBooking = {
   startAt: number;
   endAt: number;
   eventTitle: string;
+  /** Team event types (collective, round robin): the team, shown as a badge. Null for personal ones. */
+  teamName: string | null;
   attendeeName: string | null;
   locationKind: LocationKind | "phone" | null;
   locationValue: string | null;

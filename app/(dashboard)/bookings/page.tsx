@@ -18,6 +18,7 @@ import {
 } from "@/features/bookings/server/service";
 import { listEventTypes } from "@/features/event-types/server/service";
 import { addDays, localDateOf, parseDate, wallToUtc } from "@/lib/availability/tz";
+import { listMyTeams } from "@/features/teams/server/service";
 import { requireUser } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { requestTime } from "@/lib/clock";
@@ -27,7 +28,6 @@ export const metadata: Metadata = { title: "Bookings" };
 
 const NOTICES: Record<string, string> = {
   cancelled: "Booking cancelled. The invitee has been notified.",
-  reschedule_requested: "We asked the invitee to pick a new time.",
 };
 
 /** Radix Select items need a non-empty value; this one submits "all event types". */
@@ -78,13 +78,16 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
     typeof params.eventType === "string" && params.eventType && params.eventType !== ALL_EVENT_TYPES
       ? params.eventType
       : undefined;
+  // Narrows the host's own bookings; an id of a team they're not in simply matches nothing.
+  const teamFilter = typeof params.team === "string" && params.team && params.team.length <= 64 ? params.team : undefined;
   const from = isoParam(params.from);
   const to = isoParam(params.to);
-  const filter = { eventTypeId, from: dayStart(from, tz), to: dayStart(to, tz, true), now };
-  const [bookings, counts, eventTypes] = await Promise.all([
+  const filter = { eventTypeId, team: teamFilter, from: dayStart(from, tz), to: dayStart(to, tz, true), now };
+  const [bookings, counts, eventTypes, teams] = await Promise.all([
     listHostBookings(db, user.id, { ...filter, tab }),
     countHostBookings(db, user.id, filter),
     listEventTypes(db, user.id),
+    listMyTeams(db, user.id),
   ]);
   const current = Object.fromEntries(
     Object.entries(params).filter(
@@ -154,9 +157,10 @@ export default async function BookingsPage({ searchParams }: PageProps<"/booking
         })}
       </nav>
       <BookingFilters
-        key={`${eventTypeId ?? ""}|${from ?? ""}|${to ?? ""}`}
-        values={{ tab, eventType: eventTypeId, from, to }}
+        key={`${eventTypeId ?? ""}|${teamFilter ?? ""}|${from ?? ""}|${to ?? ""}`}
+        values={{ tab, eventType: eventTypeId, team: teamFilter, from, to }}
         eventTypes={eventTypes.map((et) => ({ id: et.id, title: et.title }))}
+        teams={teams.map((t) => ({ id: t.id, name: t.name }))}
         weekStartsOn={user.weekStart ?? undefined}
       >
         {listSummary(bookings.map((b) => ({ startAt: b.startAt.getTime(), endAt: b.endAt.getTime() })))}

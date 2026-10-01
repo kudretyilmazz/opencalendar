@@ -54,6 +54,14 @@ Clicks are delegated from `document`, so elements added later also work. From JS
 `OpenCalendar.popup({ calLink: "ada/intro", config: {...} })` returns `{ iframe, close }`, and
 `OpenCalendar.closePopup()` closes whichever popup is open.
 
+The popup is as tall as the booking page needs (up to 760px, within the screen) and follows it as
+the visitor moves from the calendar to the form. On phones (narrower than 640px) it opens full
+screen with the close button inside the screen.
+
+Opening the popup from your own dialog is fine: the popup always receives taps and clicks, even
+while a modal library (Radix, Headless UI…) still has `body { pointer-events: none }` set. For a
+smooth hand-over, close your dialog first and then call `OpenCalendar.popup(…)`.
+
 The modal is accessible:
 
 - it has `role="dialog"` and `aria-modal="true"`;

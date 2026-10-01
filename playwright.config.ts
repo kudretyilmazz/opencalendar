@@ -15,7 +15,8 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] }, testMatch: /(foundation|scheduling)\.spec\.ts/ },
-    { name: "webkit", use: { ...devices["Desktop Safari"] }, testMatch: /(foundation|scheduling)\.spec\.ts/ },
+    // WebKit also covers the popup embed on an iPhone (NFR-018: iOS Safari).
+    { name: "webkit", use: { ...devices["Desktop Safari"] }, testMatch: /(foundation|scheduling|embed-mobile)\.spec\.ts/ },
   ],
   // Reuses a running server locally; CI starts the production build (see .github/workflows/ci.yml).
   webServer: process.env.E2E_BASE_URL

@@ -1,6 +1,6 @@
 import { and, asc, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { attendee, booking, eventType } from "@/db/schema";
+import { attendee, booking, eventType, team } from "@/db/schema";
 import { ACTIVE, isHostOf } from "@/features/bookings/server/core";
 import { addDays, localDateOf, wallToUtc } from "@/lib/availability/tz";
 import { type OverviewBooking, weekWindow } from "../overview";
@@ -28,9 +28,10 @@ export async function countPending(db: Database, hostId: string, now: number): P
 
 async function listWindow(db: Database, hostId: string, from: number, to: number): Promise<OverviewBooking[]> {
   const rows = await db
-    .select({ booking, eventTitle: eventType.title })
+    .select({ booking, eventTitle: eventType.title, teamName: team.name })
     .from(booking)
     .innerJoin(eventType, eq(eventType.id, booking.eventTypeId))
+    .leftJoin(team, eq(team.id, eventType.teamId))
     .where(and(isHostOf(hostId), inArray(booking.status, ["accepted", "pending"]), gte(booking.startAt, new Date(from)), lt(booking.startAt, new Date(to))))
     .orderBy(asc(booking.startAt))
     .limit(100);
@@ -42,7 +43,7 @@ async function listWindow(db: Database, hostId: string, from: number, to: number
         .where(inArray(attendee.bookingId, ids))
         .orderBy(asc(attendee.createdAt))
     : [];
-  return rows.map(({ booking: b, eventTitle }) => {
+  return rows.map(({ booking: b, eventTitle, teamName }) => {
     const mine = people.filter((p) => p.bookingId === b.id);
     return {
       id: b.id,
@@ -51,6 +52,7 @@ async function listWindow(db: Database, hostId: string, from: number, to: number
       startAt: b.startAt.getTime(),
       endAt: b.endAt.getTime(),
       eventTitle,
+      teamName,
       attendeeName: (mine.find((p) => !p.isGuest) ?? mine[0])?.name ?? null,
       locationKind: b.locationKind,
       locationValue: b.locationValue,

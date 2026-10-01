@@ -47,7 +47,12 @@ export const hostSchema = z.object({
 export type HostForm = z.infer<typeof hostSchema>;
 
 export const hostsSchema = z
-  .object({ hosts: z.array(hostSchema).max(50), roundRobinWindowDays: z.number().int().min(1).max(365).default(30) })
+  .object({
+    hosts: z.array(hostSchema).max(50),
+    roundRobinWindowDays: z.number().int().min(1).max(365).default(30),
+    /** Every member is a host, including people who join later; `hosts` then only carries settings. */
+    assignAll: z.boolean().default(false),
+  })
   .refine((v) => new Set(v.hosts.map((h) => h.userId)).size === v.hosts.length, { message: "Each member can only be added once", path: ["hosts"] });
 
 export const SCHEDULING_TYPES = ["collective", "round_robin", "managed"] as const;

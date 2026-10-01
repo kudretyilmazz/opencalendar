@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { TeamBadge } from "@/features/teams/components/team-badge";
 import { QuickDecision } from "@/features/dashboard/components/quick-decision";
 import { locationSummary, meetingJoinUrl, relativeStart } from "@/features/dashboard/overview";
 import { cn } from "@/lib/cn";
@@ -106,6 +107,12 @@ export function HostBookingRow({
                   {decidable ? "Needs confirmation" : "Never confirmed"}
                 </Badge>
               )}
+              {b.teamName && <TeamBadge name={b.teamName} />}
+              {b.rescheduleRequestedAt && (b.status === "accepted" || b.status === "pending") && (
+                <Badge variant="warning" className={pill}>
+                  New time requested
+                </Badge>
+              )}
               {b.recurringSeriesId && (
                 <Badge variant="muted" className={pill}>
                   Recurring
@@ -194,7 +201,7 @@ export function HostBookingRow({
             </p>
           )}
           {tab === "upcoming" && b.status === "accepted" && primary && (
-            <HostBookingActions bookingId={b.id} attendeeName={primary.name} />
+            <HostBookingActions bookingId={b.id} invitee={{ name: primary.name, email: primary.email }} canReschedule={b.canRequestReschedule} />
           )}
           {decidable && (
             <div className="md:max-w-sm">

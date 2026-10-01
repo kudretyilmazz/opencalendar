@@ -93,7 +93,10 @@ function Answers({ answers }: { answers?: { label: string; value: string }[] }) 
   );
 }
 
-function BookingDetails({ props }: { props: BookingProps }) {
+/** The booking facts every booking email lists. */
+type BookingSummary = Pick<BookingProps, "audience" | "title" | "start" | "end" | "timeZone" | "locale" | "hour12" | "hostName" | "attendeeName" | "attendeeEmail" | "location">;
+
+function BookingDetails({ props }: { props: BookingSummary }) {
   const when = formatDateTimeRange(props.start, props.end, props);
   const other = props.audience === "attendee" ? props.hostName : `${props.attendeeName} (${props.attendeeEmail})`;
   return (
@@ -246,6 +249,28 @@ function build(input: EmailTemplateInput, b: EmailBranding): { subject: string; 
             ) : (
               <></>
             )}
+          </Layout>
+        ),
+      };
+    }
+    case "reschedule-requested": {
+      const p = input.props;
+      const subject = `Please pick a new time: ${p.title}`;
+      return {
+        subject,
+        element: (
+          <Layout branding={b} preview={subject} heading={`${p.hostName} asked you to pick a new time`} footer={BOOKING_FOOTER}>
+            <Text style={styles.text}>
+              {p.hostName} can’t make the time below and asked you to choose another one. Your meeting stays booked for this time until you pick a new one.
+            </Text>
+            {p.message ? <Text style={styles.text}>Message from {p.hostName}: {p.message}</Text> : <></>}
+            <BookingDetails props={p} />
+            <Button href={p.rescheduleUrl} style={button}>
+              Pick a new time
+            </Button>
+            <Text style={styles.muted}>
+              Can’t find a time that works? <a href={p.manageUrl}>View or cancel the booking</a>.
+            </Text>
           </Layout>
         ),
       };
