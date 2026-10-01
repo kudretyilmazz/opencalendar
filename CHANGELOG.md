@@ -8,6 +8,8 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-01
+
 ### Added
 - **Assign all team members** for collective and round-robin event types: everyone in the team
   hosts, including people who join later (added when they accept their invitation, removed when
@@ -44,6 +46,12 @@ image and restart"; migrations run automatically (see
 - **Reschedule** and **Book again** on the booking confirmation page opened the organizer's
   personal URL for team (collective and round-robin) event types, which returned 404. They now
   open the team's booking page (`/team/{team}/{slug}`).
+
+### Upgrading
+- Migrations `0014_reschedule_request` and `0015_assign_all_team_members` run automatically and
+  only add columns; existing bookings and team event types behave as before.
+- Partner sites get the popup and inline embed fixes as soon as this version serves `embed.js`;
+  no change is needed on their side.
 
 ## [1.2.0] - 2026-10-01
 
