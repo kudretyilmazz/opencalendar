@@ -8,6 +8,36 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-01
+
+### Added
+- Instance administration (ADM-009): an **Administration** area for instance admins, with an
+  overview, and a users page to search and filter accounts, make or remove admins, disable, enable
+  and delete accounts. Admins can't remove their own access and the last active admin is always
+  kept.
+- White-label branding (ADM-011), changeable without a redeploy:
+  - App name and description in page titles, headers and emails; logo, dark-mode logo, favicon and
+    home-screen icon uploads (stored in PostgreSQL).
+  - Separate switches to hide "Powered by OpenCalendar" and the footer source link. A hidden
+    source link is replaced by an **About** link; the new `/about` page always offers the source
+    code (AGPL-3.0 section 13).
+  - Theme: primary and highlight colors for light and dark mode, corner radius and the default
+    color mode, with a live preview. Colors too close to the page background are refused.
+  - Emails: button color and footer text; the logo is included when it is PNG, JPEG or WebP.
+- Platform settings: a sign-up mode that overrides `SIGNUP_MODE`, home page and sign-in texts,
+  hiding configured Google/Microsoft sign-in buttons, and defaults (time zone, week start, time
+  format) for new accounts.
+
+### Changed
+- Text on team and embed brand colors is now chosen for contrast, so light brand colors stay
+  readable on booking pages and routing forms.
+- `about` is now a reserved username.
+
+### Upgrading
+- Migration `0013_instance_settings` runs automatically and adds two tables. Instances that aren't
+  customized look and behave exactly as before; `SIGNUP_MODE` keeps applying until an admin picks
+  another mode.
+
 ## [1.1.0] - 2026-09-30
 
 ### Changed
