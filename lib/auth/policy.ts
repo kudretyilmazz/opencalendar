@@ -44,3 +44,28 @@ export function evaluateLockout(failures: readonly Date[], now: Date): LockoutSt
   const oldestCounted = recent[LOCKOUT_MAX_FAILURES - 1];
   return { locked: true, until: new Date(oldestCounted + LOCKOUT_WINDOW_MS) };
 }
+
+export const ADMIN_USER_ACTIONS = ["promote", "demote", "disable", "enable", "delete"] as const;
+export type AdminUserAction = (typeof ADMIN_USER_ACTIONS)[number];
+
+export type AdminActionDecision = { allowed: true } | { allowed: false; reason: "SELF" | "LAST_ADMIN" };
+
+/**
+ * Guard rails for instance admins managing accounts (ADM-009). An admin can't lock themselves
+ * out (demote, disable or delete their own account), and the last active admin can't be removed
+ * by anyone, so the instance always keeps someone who can administer it.
+ * `activeAdminCount`: admins that are not disabled, counted under the same lock as the change.
+ */
+export function checkAdminAction(input: {
+  actorId: string;
+  target: { id: string; role: UserRole; disabled: boolean };
+  action: AdminUserAction;
+  activeAdminCount: number;
+}): AdminActionDecision {
+  const removesAccess = input.action === "demote" || input.action === "disable" || input.action === "delete";
+  if (!removesAccess) return { allowed: true };
+  if (input.target.id === input.actorId) return { allowed: false, reason: "SELF" };
+  const targetIsActiveAdmin = input.target.role === "admin" && !input.target.disabled;
+  if (targetIsActiveAdmin && input.activeAdminCount <= 1) return { allowed: false, reason: "LAST_ADMIN" };
+  return { allowed: true };
+}

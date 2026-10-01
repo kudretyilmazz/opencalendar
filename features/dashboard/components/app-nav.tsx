@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, CalendarCheck, Clock, House, Layers, Link as LinkIcon, Route, Settings, Users } from "lucide-react";
+import { Calendar, CalendarCheck, Clock, House, Layers, Link as LinkIcon, Route, Settings, ShieldCheck, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -33,6 +33,9 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
   },
 ];
 
+/** Instance administration (ADM-009, ADM-011): only shown to admins; the pages check the role too. */
+const ADMIN_GROUP = { label: "Instance", items: [{ href: "/admin", label: "Administration", icon: ShieldCheck }] };
+
 const SETTINGS: NavItem = { href: "/settings/profile", label: "Settings", icon: Settings };
 
 function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; badge?: number }) {
@@ -60,11 +63,12 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
 }
 
 /** Grouped main navigation; `pending` puts a count on Bookings. */
-export function AppNav({ pending }: { pending: number }) {
+export function AppNav({ pending, isAdmin = false }: { pending: number; isAdmin?: boolean }) {
   const pathname = usePathname();
+  const groups = isAdmin ? [...GROUPS, ADMIN_GROUP] : GROUPS;
   return (
     <nav aria-label="Main" className="flex flex-col gap-5">
-      {GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.label ?? "main"} className="flex flex-col gap-0.5">
           {group.label && <p className="mb-1.5 px-3 text-xs font-medium text-muted-foreground">{group.label}</p>}
           {group.items.map((item) => (

@@ -158,4 +158,4 @@ Please report vulnerabilities privately; see [SECURITY.md](./SECURITY.md).
 
 ## License
 
-[GNU Affero General Public License v3.0](./LICENSE). If you run a modified version as a service, you must offer its source to your users. Set `SOURCE_URL` to your fork; every page footer links to it.
+[GNU Affero General Public License v3.0](./LICENSE). If you run a modified version as a service, you must offer its source to your users. Set `SOURCE_URL` to your fork; the page footer and the `/about` page link to it (admins can hide the footer link, but `/about` always offers the source).

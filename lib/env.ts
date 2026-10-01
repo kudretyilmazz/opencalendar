@@ -29,6 +29,9 @@ const DEFAULT_TRUSTED_PROXIES = "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,1
 
 const PLACEHOLDER_SECRET = /change-me/i;
 
+/** Default SOURCE_URL: the upstream repository (AGPL-3.0 §13 source offer, ADR-0001). */
+export const UPSTREAM_SOURCE_URL = "https://github.com/kudretyilmazz/opencalendar";
+
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "must be a postgres:// connection URL"),
@@ -113,7 +116,7 @@ const baseSchema = z.object({
   ),
   SOURCE_URL: z.preprocess(
     emptyToUndefined,
-    z.string().url().default("https://github.com/kudretyilmazz/opencalendar"),
+    z.string().url().default(UPSTREAM_SOURCE_URL),
   ),
 });
 

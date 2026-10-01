@@ -12,7 +12,7 @@ import { buildCsp, createNonce, frameAncestorsFor } from "@/lib/security/csp";
  *    every page and action still validates the session server-side (requireUser).
  */
 
-const PROTECTED_PREFIXES = ["/dashboard", "/settings", "/event-types", "/availability", "/bookings", "/teams", "/routing-forms"];
+const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/settings", "/event-types", "/availability", "/bookings", "/teams", "/routing-forms"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl;

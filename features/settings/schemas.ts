@@ -4,7 +4,7 @@ import { z } from "zod";
 const RESERVED_USERNAMES = new Set([
   "admin", "api", "app", "auth", "booking", "dashboard", "embed", "forgot-password", "help",
   "login", "logout", "reset-password", "settings", "signup", "team", "teams", "check-email", "_next",
-  "forms", "routing-forms", "event-types", "availability", "bookings",
+  "forms", "routing-forms", "event-types", "availability", "bookings", "about",
 ]);
 
 const SUPPORTED_TIME_ZONES = new Set([...Intl.supportedValuesOf("timeZone"), "UTC"]);

@@ -1,5 +1,6 @@
-import { Body, Button, Container, Head, Heading, Hr, Html, Preview, render, Text } from "@react-email/components";
-import type { ReactElement } from "react";
+import { Body, Button, Container, Head, Heading, Hr, Html, Img, Preview, render, Text } from "@react-email/components";
+import type { CSSProperties, ReactElement } from "react";
+import { DEFAULT_EMAIL_BRANDING, type EmailBranding } from "@/features/instance/email-branding";
 import type { CalendarPart } from "@/lib/email/transport";
 import { formatDateTimeRange, timeZoneLabel } from "@/lib/format";
 import type { EmailContent } from "@/lib/jobs/queues";
@@ -18,32 +19,42 @@ const styles = {
   container: { backgroundColor: "#ffffff", borderRadius: 8, margin: "32px auto", maxWidth: 480, padding: 32 },
   heading: { fontSize: 20, margin: "0 0 16px" },
   text: { color: "#334155", fontSize: 14, lineHeight: "22px" },
-  button: { backgroundColor: "#111827", borderRadius: 6, color: "#ffffff", fontSize: 14, padding: "10px 18px" },
   muted: { color: "#64748b", fontSize: 12, lineHeight: "18px" },
+  logo: { height: 32, margin: "0 0 20px", width: "auto" },
 };
 
-function Layout(props: { preview: string; heading: string; footer?: string; children: React.ReactNode }) {
+/** Call-to-action button in the instance's email button color (ADM-011). */
+const buttonStyle = (b: EmailBranding): CSSProperties => ({
+  backgroundColor: b.buttonColor,
+  borderRadius: 6,
+  color: b.buttonTextColor,
+  fontSize: 14,
+  padding: "10px 18px",
+});
+
+function Layout(props: { branding: EmailBranding; preview: string; heading: string; footer?: string; children: React.ReactNode }) {
   return (
     <Html lang="en">
       <Head />
       <Preview>{props.preview}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
+          {props.branding.logoUrl ? <Img src={props.branding.logoUrl} alt={props.branding.appName} style={styles.logo} /> : null}
           <Heading style={styles.heading}>{props.heading}</Heading>
           {props.children}
           <Hr />
-          <Text style={styles.muted}>{props.footer ?? "Sent by OpenCalendar. If you didn’t request this, you can ignore it."}</Text>
+          <Text style={styles.muted}>{props.footer ?? props.branding.accountFooter}</Text>
         </Container>
       </Body>
     </Html>
   );
 }
 
-function ActionEmail(props: { preview: string; heading: string; intro: string; cta: string; url: string; note: string }) {
+function ActionEmail(props: { branding: EmailBranding; preview: string; heading: string; intro: string; cta: string; url: string; note: string }) {
   return (
-    <Layout preview={props.preview} heading={props.heading}>
+    <Layout branding={props.branding} preview={props.preview} heading={props.heading}>
       <Text style={styles.text}>{props.intro}</Text>
-      <Button href={props.url} style={styles.button}>
+      <Button href={props.url} style={buttonStyle(props.branding)}>
         {props.cta}
       </Button>
       <Text style={styles.muted}>{props.note}</Text>
@@ -106,16 +117,17 @@ function BookingDetails({ props }: { props: BookingProps }) {
   );
 }
 
-const BOOKING_FOOTER = "Sent by OpenCalendar on behalf of your host.";
-
-function build(input: EmailTemplateInput): { subject: string; element: ReactElement; calendar?: CalendarPart } {
+function build(input: EmailTemplateInput, b: EmailBranding): { subject: string; element: ReactElement; calendar?: CalendarPart } {
+  const button = buttonStyle(b);
+  const BOOKING_FOOTER = b.bookingFooter;
   switch (input.template) {
     case "verify-email":
       return {
         subject: "Verify your email address",
         element: (
           <ActionEmail
-            preview="Confirm your email to finish setting up OpenCalendar"
+            branding={b}
+            preview={`Confirm your email to finish setting up ${b.appName}`}
             heading={`Welcome, ${input.props.name}`}
             intro="Confirm your email address to finish setting up your account."
             cta="Verify email"
@@ -129,7 +141,8 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
         subject: "Reset your password",
         element: (
           <ActionEmail
-            preview="Reset your OpenCalendar password"
+            branding={b}
+            preview={`Reset your ${b.appName} password`}
             heading={`Hi ${input.props.name}`}
             intro="We received a request to reset your password."
             cta="Reset password"
@@ -147,13 +160,13 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
         subject,
         calendar: p.ics,
         element: (
-          <Layout preview={subject} heading={heading} footer={BOOKING_FOOTER}>
+          <Layout branding={b} preview={subject} heading={heading} footer={BOOKING_FOOTER}>
             <BookingDetails props={p} />
             <Occurrences props={p} />
             <Answers answers={p.answers} />
             {p.notes ? <Text style={styles.text}>Notes: {p.notes}</Text> : <></>}
-            <Button href={p.manageUrl} style={styles.button}>
-              {p.audience === "attendee" ? "Reschedule or cancel" : "View in OpenCalendar"}
+            <Button href={p.manageUrl} style={button}>
+              {p.audience === "attendee" ? "Reschedule or cancel" : `View in ${b.appName}`}
             </Button>
             <Text style={styles.muted}>The calendar invitation is attached.</Text>
           </Layout>
@@ -163,18 +176,18 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
     case "booking-cancelled": {
       const p = input.props;
       const subject = `Cancelled: ${p.title} — ${formatDateTimeRange(p.start, p.end, p)}`;
-      const by = p.cancelledBy === "host" ? p.hostName : p.cancelledBy === "attendee" ? p.attendeeName : "OpenCalendar";
+      const by = p.cancelledBy === "host" ? p.hostName : p.cancelledBy === "attendee" ? p.attendeeName : b.appName;
       return {
         subject,
         calendar: p.ics,
         element: (
-          <Layout preview={subject} heading="This meeting was cancelled" footer={BOOKING_FOOTER}>
+          <Layout branding={b} preview={subject} heading="This meeting was cancelled" footer={BOOKING_FOOTER}>
             <BookingDetails props={p} />
             <Text style={styles.text}>
               Cancelled by {by}.{p.reason ? ` Reason: ${p.reason}` : ""}
             </Text>
             {p.rebookUrl ? (
-              <Button href={p.rebookUrl} style={styles.button}>
+              <Button href={p.rebookUrl} style={button}>
                 Pick a new time
               </Button>
             ) : (
@@ -191,24 +204,24 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
       return {
         subject,
         element: (
-          <Layout preview={subject} heading={host ? "Someone wants to book you" : "Your request was sent"} footer={BOOKING_FOOTER}>
+          <Layout branding={b} preview={subject} heading={host ? "Someone wants to book you" : "Your request was sent"} footer={BOOKING_FOOTER}>
             <BookingDetails props={p} />
             <Occurrences props={p} />
             <Answers answers={p.answers} />
             {p.notes ? <Text style={styles.text}>Notes: {p.notes}</Text> : <></>}
             {host && p.acceptUrl && p.rejectUrl ? (
               <Text style={styles.text}>
-                <Button href={p.acceptUrl} style={styles.button}>
+                <Button href={p.acceptUrl} style={button}>
                   Accept
                 </Button>{" "}
-                <Button href={p.rejectUrl} style={{ ...styles.button, backgroundColor: "#b91c1c" }}>
+                <Button href={p.rejectUrl} style={{ ...button, backgroundColor: "#b91c1c", color: "#ffffff" }}>
                   Reject
                 </Button>
               </Text>
             ) : (
               <Text style={styles.text}>{p.hostName} needs to confirm this booking. You’ll get an email with the calendar invitation once they do.</Text>
             )}
-            <Button href={p.manageUrl} style={styles.button}>
+            <Button href={p.manageUrl} style={button}>
               {host ? "Open your bookings" : "View or cancel the request"}
             </Button>
           </Layout>
@@ -221,13 +234,13 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
       return {
         subject,
         element: (
-          <Layout preview={subject} heading="Your booking request was declined" footer={BOOKING_FOOTER}>
+          <Layout branding={b} preview={subject} heading="Your booking request was declined" footer={BOOKING_FOOTER}>
             <BookingDetails props={p} />
             <Text style={styles.text}>
               {p.hostName} can’t make this time.{p.reason ? ` Reason: ${p.reason}` : ""}
             </Text>
             {p.rebookUrl ? (
-              <Button href={p.rebookUrl} style={styles.button}>
+              <Button href={p.rebookUrl} style={button}>
                 Pick another time
               </Button>
             ) : (
@@ -242,13 +255,13 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
       return {
         subject: p.subject,
         element: (
-          <Layout preview={p.subject} heading={p.subject} footer={BOOKING_FOOTER}>
+          <Layout branding={b} preview={p.subject} heading={p.subject} footer={BOOKING_FOOTER}>
             {p.body.split(/\n{2,}/).map((para, i) => (
               <Text key={i} style={{ ...styles.text, whiteSpace: "pre-line" }}>
                 {para}
               </Text>
             ))}
-            <Button href={p.bookingUrl} style={styles.button}>
+            <Button href={p.bookingUrl} style={button}>
               View booking
             </Button>
           </Layout>
@@ -260,9 +273,10 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
         subject: `Reconnect ${input.props.provider} to keep your calendar in sync`,
         element: (
           <ActionEmail
+            branding={b}
             preview={`${input.props.provider} stopped working`}
             heading={`Hi ${input.props.name}`}
-            intro={`OpenCalendar can no longer access your ${input.props.provider} account (${input.props.account}). Until you reconnect it, new bookings won’t appear in that calendar and its events won’t block your availability.`}
+            intro={`${b.appName} can no longer access your ${input.props.provider} account (${input.props.account}). Until you reconnect it, new bookings won’t appear in that calendar and its events won’t block your availability.`}
             cta="Reconnect"
             url={input.props.url}
             note="Bookings keep working in the meantime."
@@ -271,9 +285,10 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
       };
     case "team-invitation":
       return {
-        subject: `${input.props.inviterName} invited you to ${input.props.teamName} on OpenCalendar`,
+        subject: `${input.props.inviterName} invited you to ${input.props.teamName} on ${b.appName}`,
         element: (
           <ActionEmail
+            branding={b}
             preview={`Join ${input.props.teamName}`}
             heading={`Join ${input.props.teamName}`}
             intro={`${input.props.inviterName} invited you to join ${input.props.teamName} as ${input.props.role === "member" ? "a member" : `an ${input.props.role}`}. Sign in with this email address to accept or decline — new here? Use “Email me a sign-in link” on the sign-in page with this address to create your account.`}
@@ -288,8 +303,9 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
         subject: "Your sign in link",
         element: (
           <ActionEmail
-            preview="Sign in to OpenCalendar"
-            heading="Sign in to OpenCalendar"
+            branding={b}
+            preview={`Sign in to ${b.appName}`}
+            heading={`Sign in to ${b.appName}`}
             intro="Use the button below to sign in."
             cta="Sign in"
             url={input.props.url}
@@ -300,8 +316,8 @@ function build(input: EmailTemplateInput): { subject: string; element: ReactElem
   }
 }
 
-export async function renderEmail(input: EmailTemplateInput): Promise<RenderedEmail> {
-  const { subject, element, calendar } = build(input);
+export async function renderEmail(input: EmailTemplateInput, branding: EmailBranding = DEFAULT_EMAIL_BRANDING): Promise<RenderedEmail> {
+  const { subject, element, calendar } = build(input, branding);
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   return calendar ? { subject, html, text, calendar } : { subject, html, text };
 }

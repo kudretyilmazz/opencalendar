@@ -17,7 +17,13 @@ z.config({ jitless: true });
 export type ThemePreference = "system" | "light" | "dark";
 const STORAGE_KEY = "theme";
 
-export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
+/** Admin-chosen default (ADM-011) for visitors without a stored choice: <html data-default-theme>. */
+const instanceDefault = (): ThemePreference => {
+  const value = typeof document !== "undefined" ? document.documentElement.dataset.defaultTheme : undefined;
+  return value === "light" || value === "dark" ? value : "system";
+};
+
+export const THEME_SCRIPT = `(function(){try{var r=document.documentElement;var t=localStorage.getItem("${STORAGE_KEY}")||r.getAttribute("data-default-theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
 
 type ThemeContextValue = {
   theme: ThemePreference;
@@ -40,7 +46,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [prefersDark, setPrefersDark] = useState(false);
 
   useEffect(() => {
-    let stored: ThemePreference = "system";
+    let stored: ThemePreference = instanceDefault();
     try {
       const value = localStorage.getItem(STORAGE_KEY);
       if (value === "light" || value === "dark" || value === "system") stored = value;

@@ -1,6 +1,6 @@
-import { Calendar } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { BrandLogo } from "@/components/brand/logo";
 import { SourceFooter } from "@/components/source-footer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getDb } from "@/db/client";
@@ -19,26 +19,12 @@ function initials(name: string): string {
   return letters.join("").toUpperCase();
 }
 
-function Logo() {
-  return (
-    <Link
-      href="/dashboard"
-      className="flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-[-0.01em]"
-    >
-      <span className="flex size-[30px] items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <Calendar className="size-4" aria-hidden />
-      </span>
-      OpenCalendar
-    </Link>
-  );
-}
-
 function SidebarContent({
   user,
   pending,
   inSheet = false,
 }: {
-  user: { name: string; email: string };
+  user: { name: string; email: string; isAdmin: boolean };
   pending: number;
   inSheet?: boolean;
 }) {
@@ -46,12 +32,12 @@ function SidebarContent({
     <div className="flex h-full flex-col gap-6 py-5">
       {/* In the mobile sheet, leave room for its close button at the top right. */}
       <div className={cn("flex shrink-0 items-center justify-between pr-4 pl-5", inSheet && "pr-14")}>
-        <Logo />
+        <BrandLogo href="/dashboard" />
         <ThemeToggle />
       </div>
       {/* Logo and account stay put; on a short screen only the links scroll. */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-4">
-        <AppNav pending={pending} />
+        <AppNav pending={pending} isAdmin={user.isAdmin} />
       </div>
       <div className="flex shrink-0 flex-col gap-0.5 px-4">
         <SettingsNavLink />
@@ -81,14 +67,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     hasInvalidCredentials(db, user.id),
     countPending(db, user.id, requestTime()),
   ]);
-  const person = { name: user.name, email: user.email };
+  const person = { name: user.name, email: user.email, isAdmin: user.role === "admin" };
 
   return (
     // App shell: one screen tall; the sidebar (or the phone header) stays put and only <main> scrolls.
     <div className="relative flex h-svh flex-col overflow-hidden md:flex-row">
       <ThemeSync theme={profile?.theme ?? "system"} />
       <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-card pr-2 pl-4 md:hidden">
-        <Logo />
+        <BrandLogo href="/dashboard" />
         <MobileNav>
           <SidebarContent user={person} pending={pending} inSheet />
         </MobileNav>

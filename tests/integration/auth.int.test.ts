@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { team, teamInvitation, user } from "@/db/schema";
+import { updateInstanceSettings } from "@/features/instance/server/service";
 import { LOCKOUT_MAX_FAILURES } from "@/lib/auth/policy";
 import { authRequest, resetDatabase, testAuth, testDatabase, tokenFromUrl } from "./helpers";
 
@@ -46,6 +47,25 @@ describe("sign-up (AUTH-001, AUTH-005)", () => {
     const res = await signUp(auth, "late@example.com", "203.0.113.12");
     expect(res.status).toBe(403);
     expect(await db.select().from(user).where(eq(user.email, "late@example.com"))).toHaveLength(0);
+  });
+
+  it("lets the admin's sign-up mode override SIGNUP_MODE (ADM-009)", async () => {
+    const { auth } = testAuth(db, { signupMode: "open" });
+    expect((await signUp(auth, "admin@example.com")).status).toBe(200);
+    await updateInstanceSettings(db, { signupMode: "disabled" }, (await db.select().from(user))[0].id);
+    expect((await signUp(auth, "late@example.com", "203.0.113.14")).status).toBe(403);
+    await updateInstanceSettings(db, { signupMode: null }, (await db.select().from(user))[0].id);
+    expect((await signUp(auth, "late@example.com", "203.0.113.15")).status).toBe(200);
+  });
+
+  it("gives new accounts the instance defaults (ADM-009)", async () => {
+    const { auth } = testAuth(db);
+    await signUp(auth, "admin@example.com");
+    const [admin] = await db.select().from(user);
+    await updateInstanceSettings(db, { defaultTimeZone: "Europe/Istanbul", defaultWeekStart: 0, defaultTimeFormat: 12 }, admin.id);
+    await signUp(auth, "new@example.com", "203.0.113.16");
+    const [created] = await db.select().from(user).where(eq(user.email, "new@example.com"));
+    expect(created).toMatchObject({ timeZone: "Europe/Istanbul", weekStart: 0, timeFormat: 12, role: "user" });
   });
 
   it("rejects uninvited users in invite-only mode", async () => {

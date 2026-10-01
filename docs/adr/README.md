@@ -17,6 +17,7 @@ Decisions are never deleted; they are superseded by a newer ADR.
 | [0004](./0004-auth-better-auth.md) | Authentication with Better Auth (Drizzle adapter) | Accepted | 2026-09-28 |
 | [0005](./0005-jobs-pg-boss-no-redis.md) | Background jobs with pg-boss, no Redis | Accepted | 2026-09-28 |
 | [0006](./0006-caldav-first-calendar-strategy.md) | CalDAV-first calendar strategy with Google/Microsoft adapters | Accepted | 2026-09-28 |
+| [0007](./0007-instance-settings-in-db.md) | Instance branding and settings live in the database | Accepted | 2026-10-01 |
 
 ## Candidate future ADRs
 

@@ -236,6 +236,13 @@ NFRs carry no MoSCoW priority, so the Priority column shows `NFR`.
 
 ---
 
+## Beyond M4: instance administration (M6)
+
+| ID | Priority | Requirement | Status | Implementation | Tests |
+|---|---|---|---|---|---|
+| ADM-009 | Must | Instance admin area: list, search, disable and delete users; change the sign-up mode | Done (deviation: job queue health and integration configuration status are not shown yet) | `app/(dashboard)/admin/*`, `features/admin-users/*`, `lib/auth/policy.ts` (`checkAdminAction`), `features/instance/schemas.ts` (`platformSchema`) | `lib/auth/policy.test.ts`; `tests/integration/admin-users.int.test.ts`; `tests/integration/auth.int.test.ts` "lets the admin's sign-up mode override SIGNUP_MODE"; `admin.spec.ts` |
+| ADM-011 | Should | Branding and white-label: app name, logo, favicon, brand color, removing "Powered by" from pages and emails | Done (deviation: per-team logos are still URLs, not uploads) | `features/instance/*`, `app/api/branding/[kind]/route.ts`, `components/brand/logo.tsx`, `components/source-footer.tsx`, `app/(site)/about/page.tsx`, `lib/email/templates.tsx` | `features/instance/**/*.test.ts`; `lib/email/templates.test.tsx`; `tests/integration/instance-settings.int.test.ts`; `admin.spec.ts` |
+
 ## Gaps
 
 ### Must requirements not `Done` / `Done (deviation)`
