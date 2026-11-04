@@ -65,7 +65,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.1.0",
     "autocannon": "^8.0.0",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
