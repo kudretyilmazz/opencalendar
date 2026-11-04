@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { parseDate, wallToUtc } from "@/lib/availability/tz";
 import { ensureOk, IntegrationError } from "./errors";
 import { bearer, oauthCredentialSchema } from "./oauth";
@@ -11,11 +10,6 @@ import type { BusyInterval, CalendarAdapter, CalendarEventInput, OAuthCredential
 
 const API = "https://www.googleapis.com/calendar/v3";
 type Cred = OAuthCredential;
-
-/** Deterministic Google event id (base32hex, 5–1024 chars) so retried creates are idempotent. */
-export function googleEventId(uid: string): string {
-  return createHash("sha256").update(uid).digest("hex").slice(0, 32); // hex ⊂ base32hex alphabet
-}
 
 const enc = encodeURIComponent;
 
@@ -56,6 +50,18 @@ function toMs(t: { dateTime?: string; date?: string } | undefined, timeZone: str
 }
 
 const declinedBySelf = (ev: GoogleEvent) => ev.attendees?.some((a) => a.self && a.responseStatus === "declined") ?? false;
+
+type GoogleCreated = Parameters<typeof meetingUrl>[0] & { id: string };
+
+/** The live event holding `uid` (a cancelled one is not returned, so its 409 is reported). */
+async function findByICalUid(ctx: Parameters<CalendarAdapter<Cred>["listCalendars"]>[0], calendarId: string, uid: string): Promise<GoogleCreated> {
+  const params = new URLSearchParams({ iCalUID: uid, maxResults: "1" });
+  const res = await ensureOk(await ctx.fetch(`${API}/calendars/${enc(calendarId)}/events?${params}`, { headers: bearer(ctx.credential) }), "Google events.list");
+  const json = (await res.json()) as { items?: GoogleCreated[] };
+  const found = json.items?.[0];
+  if (!found) throw new IntegrationError("invalid", "Google event with this iCalUID already exists but could not be read", 409);
+  return found;
+}
 
 export const googleCalendar: CalendarAdapter<Cred> = {
   async listCalendars(ctx) {
@@ -100,9 +106,10 @@ export const googleCalendar: CalendarAdapter<Cred> = {
   },
 
   async createEvent(ctx, calendarId, e) {
-    const id = googleEventId(e.uid);
+    // iCalUID = the emailed ICS's UID, so Gmail's invitation card finds this (the organizer's) event.
+    // Google forbids sending both `id` and `iCalUID`, so Google assigns the id.
     const body = {
-      id,
+      iCalUID: e.uid,
       ...eventBody(e),
       ...(e.conference === "google_meet" && {
         conferenceData: { createRequest: { requestId: e.uid, conferenceSolutionKey: { type: "hangoutsMeet" } } },
@@ -110,12 +117,9 @@ export const googleCalendar: CalendarAdapter<Cred> = {
     };
     // sendUpdates=none: OpenCalendar sends its own invitations.
     const url = `${API}/calendars/${enc(calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`;
-    let res = await ctx.fetch(url, { method: "POST", headers: bearer(ctx.credential, { "content-type": "application/json" }), body: JSON.stringify(body) });
-    if (res.status === 409) {
-      // Already created by an earlier attempt: read it back.
-      res = await ctx.fetch(`${API}/calendars/${enc(calendarId)}/events/${id}`, { headers: bearer(ctx.credential) });
-    }
-    const json = (await (await ensureOk(res, "Google events.insert")).json()) as Parameters<typeof meetingUrl>[0] & { id: string };
+    const res = await ctx.fetch(url, { method: "POST", headers: bearer(ctx.credential, { "content-type": "application/json" }), body: JSON.stringify(body) });
+    // 409: already created by an earlier attempt (job retry), so read it back.
+    const json = res.status === 409 ? await findByICalUid(ctx, calendarId, e.uid) : ((await (await ensureOk(res, "Google events.insert")).json()) as GoogleCreated);
     return { externalId: json.id, meetingUrl: meetingUrl(json) };
   },
 

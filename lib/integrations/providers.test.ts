@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { googleCalendar, googleEventId } from "./google";
+import { googleCalendar } from "./google";
 import { microsoftCalendar } from "./microsoft";
 import type { CalendarEventInput, FetchLike, OAuthCredential, ProviderContext } from "./types";
 import { zoomConferencing } from "./zoom";
@@ -97,30 +97,41 @@ describe("Google Calendar adapter (INT-002, INT-008)", () => {
     ]);
   });
 
-  it("creates events idempotently with a Meet link and no Google invitations", async () => {
+  it("creates events with the invitation's iCalUID, a Meet link and no Google invitations", async () => {
     const api = fakeApi({
-      [`POST ${G}/calendars/`]: ({ body }) => json({ id: (body as { id: string }).id, hangoutLink: "https://meet.google.com/abc-defg-hij" }),
+      [`POST ${G}/calendars/`]: () => json({ id: "gen1", hangoutLink: "https://meet.google.com/abc-defg-hij" }),
     });
     const created = await googleCalendar.createEvent!(ctx(api.fetch), "primary@x", { ...event, conference: "google_meet" });
-    expect(created).toEqual({ externalId: googleEventId(event.uid), meetingUrl: "https://meet.google.com/abc-defg-hij" });
+    expect(created).toEqual({ externalId: "gen1", meetingUrl: "https://meet.google.com/abc-defg-hij" });
     const call = api.calls[0];
     expect(call.url.searchParams.get("sendUpdates")).toBe("none");
     expect(call.url.searchParams.get("conferenceDataVersion")).toBe("1");
+    // Same UID as the emailed ICS, so Gmail's invitation card finds the organizer's event.
     expect(call.body).toMatchObject({
-      id: googleEventId(event.uid),
+      iCalUID: event.uid,
       conferenceData: { createRequest: { requestId: event.uid, conferenceSolutionKey: { type: "hangoutsMeet" } } },
       attendees: [{ email: "grace@x.test", displayName: "Grace" }],
       start: { dateTime: "2026-10-05T10:00:00.000Z", timeZone: "Europe/Istanbul" },
     });
-    expect(googleEventId(event.uid)).toMatch(/^[0-9a-v]{5,1024}$/);
+    // Google rejects inserts that carry both an id and an iCalUID.
+    expect(call.body).not.toHaveProperty("id");
   });
 
-  it("treats a 409 on create as an earlier attempt and reads the event back", async () => {
+  it("treats a 409 on create as an earlier attempt and reads the event back by iCalUID", async () => {
     const api = fakeApi({
       [`POST ${G}/calendars/`]: () => json({ error: "duplicate" }, 409),
-      [`GET ${G}/calendars/`]: () => json({ id: "existing", hangoutLink: "https://meet.google.com/x" }),
+      [`GET ${G}/calendars/`]: () => json({ items: [{ id: "existing", hangoutLink: "https://meet.google.com/x" }] }),
     });
     expect(await googleCalendar.createEvent!(ctx(api.fetch), "c", event)).toEqual({ externalId: "existing", meetingUrl: "https://meet.google.com/x" });
+    expect(api.calls[1].url.searchParams.get("iCalUID")).toBe(event.uid);
+  });
+
+  it("fails clearly when a 409 duplicate cannot be found by iCalUID", async () => {
+    const api = fakeApi({
+      [`POST ${G}/calendars/`]: () => json({ error: "duplicate" }, 409),
+      [`GET ${G}/calendars/`]: () => json({ items: [] }),
+    });
+    await expect(googleCalendar.createEvent!(ctx(api.fetch), "c", event)).rejects.toThrow(/already exists/);
   });
 
   it("updates, deletes (tolerating 404/410) and maps 401 to an auth error", async () => {
