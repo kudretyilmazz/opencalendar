@@ -20,7 +20,6 @@ import { createEventType, findPublicEventType, findPublicHost } from "@/features
 import { ensureDefaultSchedule } from "@/features/schedules/server/service";
 import { createCipher } from "@/lib/crypto/encryption";
 import { parseEnv } from "@/lib/env";
-import { googleEventId } from "@/lib/integrations/google";
 import { getProvider } from "@/lib/integrations/registry";
 import { createFakeGoogle, createFakeZoom } from "./fakes/providers";
 import { resetDatabase, testDatabase } from "./helpers";
@@ -234,7 +233,8 @@ describe("mirroring bookings (INT-007, INT-008, INT-009)", () => {
     expect(b.locationValue).toBe(outcome.meetingUrl);
     const gEvents = google.events.get("primary@example.com")!;
     expect(gEvents).toHaveLength(1);
-    expect(gEvents[0].id).toBe(googleEventId(`${created.booking.icalUid}@cal.example.com`));
+    // Same UID as the emailed invitation, so Gmail can load the event card.
+    expect(gEvents[0].iCalUID).toBe(`${created.booking.icalUid}@cal.example.com`);
 
     // Our own event is not an external conflict: the booking itself already blocks the time.
     const busy = await getExternalBusy(deps(), { userId: "h1", window: MONDAY, timeZone: "UTC" });

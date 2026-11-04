@@ -5,9 +5,10 @@ import type { FetchLike } from "@/lib/integrations/types";
  * tests through the injectable `fetchFor`. They implement just the endpoints our adapters call.
  */
 
-type GEvent = { id: string; summary?: string; start: { dateTime: string }; end: { dateTime: string }; hangoutLink?: string; transparency?: string };
+type GEvent = { id: string; iCalUID?: string; summary?: string; start: { dateTime: string }; end: { dateTime: string }; hangoutLink?: string; transparency?: string };
 
 export function createFakeGoogle() {
+  let generatedIds = 0;
   const calendars = [
     { id: "primary@example.com", summary: "Hana", accessRole: "owner", primary: true },
     { id: "team@example.com", summary: "Team", accessRole: "reader" },
@@ -39,6 +40,9 @@ export function createFakeGoogle() {
     if (!m) return json({ error: "not found" }, 404);
     const [, calId, eventId] = m;
     const list = events.get(calId) ?? [];
+    if (method === "GET" && !eventId && url.searchParams.has("iCalUID")) {
+      return json({ items: list.filter((e) => e.iCalUID === url.searchParams.get("iCalUID")) });
+    }
     if (method === "GET" && !eventId) {
       stats.eventsList++;
       const min = Date.parse(url.searchParams.get("timeMin")!);
@@ -47,9 +51,12 @@ export function createFakeGoogle() {
     }
     if (method === "POST") {
       stats.inserts++;
-      const body = JSON.parse(String(init.body)) as GEvent & { id: string; conferenceData?: unknown };
-      if (list.some((e) => e.id === body.id)) return json({ error: "duplicate" }, 409);
-      const ev: GEvent = { ...body, ...(body.conferenceData ? { hangoutLink: `https://meet.google.com/fake-${body.id.slice(0, 6)}` } : {}) };
+      const body = JSON.parse(String(init.body)) as Omit<GEvent, "id"> & { id?: string; conferenceData?: unknown };
+      // Like Google: an insert may carry an id or an iCalUID, never both; ids are generated otherwise.
+      if (body.id && body.iCalUID) return json({ error: "id and iCalUID" }, 400);
+      if (list.some((e) => (body.id && e.id === body.id) || (body.iCalUID && e.iCalUID === body.iCalUID))) return json({ error: "duplicate" }, 409);
+      const id = body.id ?? `gen${++generatedIds}`;
+      const ev: GEvent = { ...body, id, ...(body.conferenceData ? { hangoutLink: `https://meet.google.com/fake-${id.slice(0, 6)}` } : {}) };
       events.set(calId, [...list, ev]);
       return json(ev);
     }
