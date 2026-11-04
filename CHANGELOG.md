@@ -8,6 +8,21 @@ image and restart"; migrations run automatically (see
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-04
+
+### Fixed
+- **Gmail showed "Unable to load event"** on booking confirmation emails when the destination
+  calendar is Google, and the event reached the invitee's calendar only later. The Google event
+  now carries the same iCalUID as the emailed invitation, so Gmail's invitation card loads it.
+
+### Security
+- Updated production dependencies with high/critical advisories: `next` 16.4.5, `undici` 8.12.3,
+  plus `better-auth`, `zod` and transitive packages within their existing ranges.
+
+### Upgrading
+- No migrations. The fix applies to bookings created after the upgrade; existing Google events
+  keep their current UID.
+
 ## [1.3.0] - 2026-10-01
 
 ### Added
